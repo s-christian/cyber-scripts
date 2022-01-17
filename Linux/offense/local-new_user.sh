@@ -9,7 +9,7 @@ if [ $# -ne 1 ]; then
 fi
 
 if [ $EUID -ne 0 ]; then
-	echo "[!] Must be root"
+	echo "[!] Must run as root"
 	exit 1
 fi
 
