@@ -398,8 +398,8 @@ else
 		if grep -q "${username}:x:" "$PASSWD"; then
 			cecho warning "User '$username' already exists, skipping"
 		else
-			# no-log-init, comment, shell, groups, username, password
-			useradd -l -c "${NEW_NORMAL_USERS[$username]}" -s "/bin/bash" -G "wheel,sudo,users" "$username" -p "`create_sha512_password_hash`" && cecho info "Created new normal user '$username' with password '$USER_PASSWORD'" || cecho error "Could not create new normal user '$username'"
+			# no-log-init, create-home, comment, shell, groups, username, password
+			useradd -l -m -c "${NEW_NORMAL_USERS[$username]}" -s "/bin/bash" -G "wheel,sudo,users" "$username" -p "`create_sha512_password_hash`" && cecho info "Created new normal user '$username' with password '$USER_PASSWORD'" || cecho error "Could not create new normal user '$username'"
 		fi
 	done
 
