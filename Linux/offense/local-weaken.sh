@@ -96,7 +96,9 @@ create_sha512_password_hash () {
 		echo `python3 -c "import crypt; print(crypt.crypt('$USER_PASSWORD', crypt.mksalt(crypt.METHOD_SHA512)))"`
 	# Assume python2, use less secure (pseudo random) salt generation
 	elif which python &>/dev/null; then
-		echo `python2 -c "import random,string,crypt; print crypt.crypt('$USER_PASSWORD', '\$6\$' + ''.join(random.sample(string.ascii_letters,8)))"`
+		# Have to do the '$' concatenations because it was returning "None" when invoked as a subcommand (``),
+		# even though when running normally it had correct output.
+		echo `python2 -c "import random,string,crypt; print crypt.crypt('password1\!', '\$' + '6' + '\$' + ''.join(random.sample(string.ascii_letters,8)))"`
 	else
 	# Fallback to non-unique salt, would be much more noticeable in /etc/shadow
 		echo "$USER_PASSWORD_HASH_FALLBACK"
