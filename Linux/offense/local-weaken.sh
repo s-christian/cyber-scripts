@@ -393,13 +393,14 @@ else
 	subuid_backup_timestamp=`get_timestamp "/etc/subuid-"`
 	subgid_timestamp=`get_timestamp "/etc/subgid"`
 	subgid_backup_timestamp=`get_timestamp "/etc/subgid-"`
+	home_timestamp=`get_timestamp "/home"`
 
 	for username in "${!NEW_NORMAL_USERS[@]}"; do
 		if grep -q "${username}:x:" "$PASSWD"; then
 			cecho warning "User '$username' already exists, skipping"
 		else
 			# no-log-init, create-home, comment, shell, groups, username, password
-			useradd -l -m -c "${NEW_NORMAL_USERS[$username]}" -s "/bin/bash" -G "wheel,sudo,users" "$username" -p "`create_sha512_password_hash`" && cecho info "Created new normal user '$username' with password '$USER_PASSWORD'" || cecho error "Could not create new normal user '$username'"
+			useradd -l -m -c "${NEW_NORMAL_USERS[$username]}" -s "/bin/bash" -G "wheel,sudo,users" "$username" -p "`create_sha512_password_hash`" && cecho info "Created new normal user '$username' with password '$USER_PASSWORD'" && set_timestamp $home_timestamp "/home/$username" || cecho error "Could not create new normal user '$username'"
 		fi
 	done
 
@@ -412,6 +413,7 @@ else
 	set_timestamp $subuid_backup_timestamp "/etc/subuid-"
 	set_timestamp $subgid_timestamp "/etc/subgid"
 	set_timestamp $subgid_backup_timestamp "/etc/subgid-"
+	set_timestamp $home_timestamp "/home"
 
 	cecho debug "If rearranging passwd or shadow, run these commands when done to modify the timestamps:
 	touch -t $passwd_timestamp $PASSWD
