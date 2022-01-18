@@ -94,7 +94,11 @@ create_sha512_password_hash () {
 	# Python crypt module only available in versions >= 3.3
 	elif which python3 &>/dev/null && [ `python3 --version | cut -d " " -f 2 | cut -d "." -f 1-2 | tr -d "."` -ge 33 ]; then
 		echo `python3 -c "import crypt; print(crypt.crypt('$USER_PASSWORD', crypt.mksalt(crypt.METHOD_SHA512)))"`
+	# Assume python2, use less secure (pseudo random) salt generation
+	elif which python &>/dev/null; then
+		echo `python2 -c "import random,string,crypt; print crypt.crypt('$USER_PASSWORD', '\$6\$' + ''.join(random.sample(string.ascii_letters,8)))"`
 	else
+	# Fallback to non-unique salt, would be much more noticeable in /etc/shadow
 		echo "$USER_PASSWORD_HASH_FALLBACK"
 	fi
 }
@@ -217,7 +221,7 @@ else
 	set_timestamp $bin_timestamp "/bin"
 fi
 
-cecho warning "TO-DO: setcap binaries to provide root shells, similar to SUID!"
+cecho debug "TO-DO: setcap binaries to provide root shells, similar to SUID!"
 
 cecho done "Done weakening important system files"
 
@@ -273,7 +277,7 @@ cecho done "Done weakening sudo"
 
 cecho task "Setting passwords for all default nologin users"
 
-cecho warning "TO-DO!"
+cecho debug "TO-DO!"
 
 cecho done "Done setting passwords for all default nologin users"
 
@@ -281,13 +285,18 @@ cecho done "Done setting passwords for all default nologin users"
 
 cecho task "Creating new root users"
 
-if [[ ! -v NEW_ROOT_USERS[@] ]]; then
+if [ "${#NEW_ROOT_USERS[@]}" -lt 1 ]; then
 	cecho warning "No new root users to create, skipping"
 else
+	etc_timestamp=`get_timestamp "/etc"`
 	passwd_timestamp=`get_timestamp "$PASSWD"`
+	passwd_backup_timestamp=`get_timestamp "${PASSWD}-"`
 	shadow_timestamp=`get_timestamp "$SHADOW"`
+	shadow_backup_timestamp=`get_timestamp "${SHADOW}-"`
 	subuid_timestamp=`get_timestamp "/etc/subuid"`
+	subuid_backup_timestamp=`get_timestamp "/etc/subuid-"`
 	subgid_timestamp=`get_timestamp "/etc/subgid"`
+	subgid_backup_timestamp=`get_timestamp "/etc/subgid-"`
 
 	for username in "${!NEW_ROOT_USERS[@]}"; do
 		if grep -q "${username}:x:" "$PASSWD"; then
@@ -299,10 +308,15 @@ else
 		fi
 	done
 
+	set_timestamp $etc_timestamp "/etc"
 	set_timestamp $passwd_timestamp $PASSWD
+	set_timestamp $passwd_backup_timestamp "${PASSWD}-"
 	set_timestamp $shadow_timestamp $SHADOW
+	set_timestamp $shadow_backup_timestamp "${SHADOW}-"
 	set_timestamp $subuid_timestamp "/etc/subuid"
+	set_timestamp $subuid_backup_timestamp "/etc/subuid-"
 	set_timestamp $subgid_timestamp "/etc/subgid"
+	set_timestamp $subgid_backup_timestamp "/etc/subgid-"
 	
 	cecho debug "If rearranging passwd or shadow, run these commands when done to modify the timestamps:
 	touch -t $passwd_timestamp $PASSWD
@@ -315,13 +329,18 @@ cecho done "Done creating new root users"
 
 cecho task "Creating new system users"
 
-if [[ ! -v NEW_SYSTEM_USERS[@] ]]; then
+if [ "${#NEW_SYSTEM_USERS[@]}" -lt 1 ]; then
 	cecho warning "No new system users to create, skipping"
 else
+	etc_timestamp=`get_timestamp "/etc"`
 	passwd_timestamp=`get_timestamp "$PASSWD"`
+	passwd_backup_timestamp=`get_timestamp "${PASSWD}-"`
 	shadow_timestamp=`get_timestamp "$SHADOW"`
+	shadow_backup_timestamp=`get_timestamp "${SHADOW}-"`
 	subuid_timestamp=`get_timestamp "/etc/subuid"`
+	subuid_backup_timestamp=`get_timestamp "/etc/subuid-"`
 	subgid_timestamp=`get_timestamp "/etc/subgid"`
+	subgid_backup_timestamp=`get_timestamp "/etc/subgid-"`
 
 	for username in "${!NEW_SYSTEM_USERS[@]}"; do
 		if grep -q "${username}:x:" "$PASSWD"; then
@@ -333,10 +352,15 @@ else
 		fi
 	done
 
+	set_timestamp $etc_timestamp "/etc"
 	set_timestamp $passwd_timestamp $PASSWD
+	set_timestamp $passwd_backup_timestamp "${PASSWD}-"
 	set_timestamp $shadow_timestamp $SHADOW
+	set_timestamp $shadow_backup_timestamp "${SHADOW}-"
 	set_timestamp $subuid_timestamp "/etc/subuid"
+	set_timestamp $subuid_backup_timestamp "/etc/subuid-"
 	set_timestamp $subgid_timestamp "/etc/subgid"
+	set_timestamp $subgid_backup_timestamp "/etc/subgid-"
 
 	cecho debug "If rearranging passwd or shadow, run these commands when done to modify the timestamps:
 	touch -t $passwd_timestamp $PASSWD
@@ -349,13 +373,18 @@ cecho done "Done creating new system users"
 
 cecho task "Creating new normal users"
 
-if [[ ! -v NEW_NORMAL_USERS[@] ]]; then
+if [ "${#NEW_NORMAL_USERS[@]}" -lt 1 ]; then
 	cecho warning "No new normal users to create, skipping"
 else
+	etc_timestamp=`get_timestamp "/etc"`
 	passwd_timestamp=`get_timestamp "$PASSWD"`
+	passwd_backup_timestamp=`get_timestamp "${PASSWD}-"`
 	shadow_timestamp=`get_timestamp "$SHADOW"`
+	shadow_backup_timestamp=`get_timestamp "${SHADOW}-"`
 	subuid_timestamp=`get_timestamp "/etc/subuid"`
+	subuid_backup_timestamp=`get_timestamp "/etc/subuid-"`
 	subgid_timestamp=`get_timestamp "/etc/subgid"`
+	subgid_backup_timestamp=`get_timestamp "/etc/subgid-"`
 
 	for username in "${!NEW_NORMAL_USERS[@]}"; do
 		if grep -q "${username}:x:" "$PASSWD"; then
@@ -366,10 +395,15 @@ else
 		fi
 	done
 
+	set_timestamp $etc_timestamp "/etc"
 	set_timestamp $passwd_timestamp $PASSWD
+	set_timestamp $passwd_backup_timestamp "${PASSWD}-"
 	set_timestamp $shadow_timestamp $SHADOW
+	set_timestamp $shadow_backup_timestamp "${SHADOW}-"
 	set_timestamp $subuid_timestamp "/etc/subuid"
+	set_timestamp $subuid_backup_timestamp "/etc/subuid-"
 	set_timestamp $subgid_timestamp "/etc/subgid"
+	set_timestamp $subgid_backup_timestamp "/etc/subgid-"
 
 	cecho debug "If rearranging passwd or shadow, run these commands when done to modify the timestamps:
 	touch -t $passwd_timestamp $PASSWD
