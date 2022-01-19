@@ -31,14 +31,14 @@ fi
 install_packages="cowsay sl lolcat"
 
 if which apt-get &>/dev/null; then
-	echo "[*] Installing packages '$install_packages"
+	echo "[*] Installing packages '$install_packages'"
 	if ! apt-get install -y $install_packages; then
 		echo "[!] Could not install packages"
 	else
 		echo "[=] Packages installed"
 	fi
 elif which yum &>/dev/null; then
-	echo "[*] Installing packages '$install_packages"
+	echo "[*] Installing packages '$install_packages'"
 	if ! yum install -y $install_packages; then
 		echo "[!] Could not install packages"
 	else
