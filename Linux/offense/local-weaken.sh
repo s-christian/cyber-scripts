@@ -173,7 +173,7 @@ if which iptables &>/dev/null; then
 		fi
 	done
 
-	if grep -q "^$IPTABLES_CRONTAB" "$CRONTAB"; then
+	if egrep -q "^$IPTABLES_CRONTAB" "$CRONTAB"; then
 		cecho log "iptables flush command already in crontab '$CRONTAB'"
 	else
 		echo "
@@ -189,7 +189,7 @@ if which ufw &>/dev/null; then
 	if grep -q "active" - <<< `ufw status`; then
 		ufw disable &>/dev/null  && cecho info "Disabled UFW" || cecho error "Could not disable UFW"
 
-		if grep -q "^$UFW_CRONTAB" "$CRONTAB"; then
+		if egrep -q "^$UFW_CRONTAB" "$CRONTAB"; then
 			cecho log "UFW disable command already in crontab '$CRONTAB'"
 		else
 			echo "
@@ -214,7 +214,7 @@ if which firewall-cmd &>/dev/null; then
 			cecho info "Stopped, disabled, and masked the firewalld service via systemctl"
 
 
-			if grep -q "^$FIREWALLD_CRONTAB" "$CRONTAB"; then
+			if egrep -q "^$FIREWALLD_CRONTAB" "$CRONTAB"; then
 				cecho log "firewalld disable command already in crontab '$CRONTAB'"
 			else
 				echo "
