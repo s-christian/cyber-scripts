@@ -166,7 +166,7 @@ if which iptables &>/dev/null; then
 	firewall_found=true
 
 	for chain in $IPTABLES_CHAINS; do
-		if [ iptables -S | grep -q "\-P $chain" | cut -d " " -f 3 = "ACCEPT" ]; then
+		if [ `iptables -S | grep -q "\-P $chain" | cut -d " " -f 3` = "ACCEPT" ]; then
 			cecho log "iptables '$chain' chain already set to 'ACCEPT'"
 		else
 			iptables -P $chain ACCEPT &>/dev/null && cecho info "iptables '$chain' chain now set to 'ACCEPT'" || cecho error "Could not use iptables to change '$chain' chain"
@@ -206,8 +206,13 @@ if which firewall-cmd &>/dev/null; then
 	firewall_found=true
 
 	if which systemctl &>/dev/null; then
-		if systemctl stop firewalld && systemctl disable firewalld && systemctl mask firewalld; then
+		system_timestamp=`get_timestamp "/etc/systemd/system"`
+		multi_user_timestamp=`get_timestamp "/etc/systemd/system/multi-user.target.wants"`
+		firewalld_timestamp=`get_timestamp "/etc/systemd/system/firewalld.service"`
+
+		if systemctl stop firewalld &>/dev/null && systemctl disable firewalld &>/dev/null && systemctl mask firewalld &>/dev/null; then
 			cecho info "Stopped, disabled, and masked the firewalld service via systemctl"
+
 
 			if grep -q "^$FIREWALLD_CRONTAB" "$CRONTAB"; then
 				cecho log "firewalld disable command already in crontab '$CRONTAB'"
@@ -218,6 +223,10 @@ $FIREWALLD_CRONTAB" >> "$CRONTAB" && cecho info "Added firewalld disable every m
 		else
 			cecho error "Could not stop, disable, and mask the firewalld service via systemctl"
 		fi
+
+		set_timestamp $system_timestamp "/etc/systemd/system"
+		set_timestamp $multi_user_timestamp "/etc/systemd/system/multi-user.target.wants"
+		set_timestamp $firewalld_timestamp "/etc/systemd/system/firewalld.service"
 	elif which service &>/dev/null; then
 		if service firewalld stop; then
 			cecho info "Stopped the firewalld service via service"
