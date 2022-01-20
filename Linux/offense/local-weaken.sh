@@ -166,7 +166,7 @@ if which iptables &>/dev/null; then
 	firewall_found=true
 
 	for chain in $IPTABLES_CHAINS; do
-		if [ `iptables -S | grep -q "\-P $chain" | cut -d " " -f 3` = "ACCEPT" ]; then
+		if [ `iptables -S | grep "\-P $chain" | cut -d " " -f 3` = "ACCEPT" ]; then
 			cecho log "iptables '$chain' chain already set to 'ACCEPT'"
 		else
 			iptables -P $chain ACCEPT &>/dev/null && cecho info "iptables '$chain' chain now set to 'ACCEPT'" || cecho error "Could not use iptables to change '$chain' chain"
