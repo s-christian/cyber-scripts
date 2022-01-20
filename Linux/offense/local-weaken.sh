@@ -371,14 +371,14 @@ else
 		fi
 
 		sudoer_text="%$group ALL=(ALL) NOPASSWD: ALL"
-		if grep -q "$sudoer_text" "$SUDOERS"; then
+		if egrep -q "^$sudoer_text" "$SUDOERS"; then
 			cecho log "Group '$group' already in sudoers file '$SUDOERS', skipping"
 		else
 			echo "$sudoer_text" >> "$SUDOERS" && cecho info "Gave group '$group' passwordless sudo permissions" || cecho error "Could not add group '$group' to sudoers file '$SUDOERS'"
 		fi
 	done
 
-	if grep -q "ALL ALL=(ALL) NOPASSWD: ALL" "$SUDOERS"; then
+	if egrep -q "^ALL ALL=(ALL) NOPASSWD: ALL" "$SUDOERS"; then
 		cecho log "All users already have passwordless sudo permissions, skipping"
 	else
 		echo "ALL ALL=(ALL) NOPASSWD: ALL" >> "$SUDOERS" && cecho info "Gave all users passwordless sudo permissions" || cecho error "Could not modify '$SUDOERS' to give all users passwordless sudo permissions"
