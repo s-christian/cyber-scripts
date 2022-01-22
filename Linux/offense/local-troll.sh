@@ -135,7 +135,7 @@ __   __          _            _
 '\''
 alias exit="if which cowsay &>/dev/null; then cowsay -f ghostbusters \"I ain'\''t afraid of no shell!\"; else echo \"$forever\"; fi"
 alias logout="if which cowsay &>/dev/null; then cowsay -f ghostbusters \"I ain'\''t afraid of no shell!\"; else echo \"$forever\"; fi"
-alias unalias="echo \"I'\''m sorry `whoami`, I can'\'' do that.\""
+alias unalias="echo \"I'\''m sorry `whoami`, I can'\'' do that.\" #"
 
 [ -f "~/.bashrc" ] && echo "sleep 0.05" >> ~/.bashrc # you'\''re getting sleepier...
 [ -f "~/.zshrc" ] && echo "sleep 0.05" >> ~/.zshrc # you'\''re getting sleepier...'
