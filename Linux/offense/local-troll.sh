@@ -39,7 +39,7 @@ install_packages="cowsay sl lolcat"
 echo
 if which apt-get &>/dev/null; then
 	echo "[+] --- Installing packages '$install_packages'"
-	if ! apt-get install -y $install_packages; then
+	if ! apt-get install -y --force-yes $install_packages; then
 		echo "[!] Could not install packages"
 	else
 		echo "[=] Packages installed"
