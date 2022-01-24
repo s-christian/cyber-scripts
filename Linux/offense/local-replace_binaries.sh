@@ -175,7 +175,9 @@ else
 		if [ -z "$command" ]; then
 			cecho error "Provided binary is an empty string, strange! Skipping..."
 		else
-			if which "$command" &>/dev/null; then
+			if ! which "$command" &>/dev/null; then
+				cecho warning "Binary '$command' doesn't exist, skipping"
+			else
 				command_path=$(which $command)
 
 				if [ -f "/bin/bak${command}" ]; then
@@ -196,8 +198,6 @@ else
 						fi
 					fi
 				fi
-			else
-				cecho warning "Binary '$command' doesn't exist, skipping"
 			fi
 		fi
 	done
