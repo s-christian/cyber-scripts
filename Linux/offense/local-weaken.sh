@@ -120,7 +120,7 @@ FIREWALLD_CRONTAB="* * * * * root systemctl stop firewalld && systemctl disable 
 
 SSH_CONFIG_DIR="/etc/ssh"
 SSHD_CONFIG="$SSH_CONFIG_DIR/sshd_config"
-SSHD_OPTIONS="PermitRootLogin PermitEmptyPasswords PasswordAuthentication PubkeyAuthentication"
+SSHD_OPTIONS="PermitRootLogin PermitEmptyPasswords PasswordAuthentication PubkeyAuthentication UsePAM"
 PAM_DIR="/etc/pam.d"
 SSHD_PAM="$PAM_DIR/sshd"
 
@@ -394,7 +394,7 @@ else
 	gshadow_timestamp=`get_timestamp "/etc/gshadow"`
 	gshadow_backup_timestamp=`get_timestamp "/etc/gshadow-"`
 
-	chmod o+rw "$SUDOERS" && cecho info "Made '$SUDOERS' world readable and writable" || cecho error "Couldn't chmod '$SUDOERS'"
+	# /etc/sudoers can't be world writable or sudo doesn't work
 
 	for group in $NEW_GROUPS; do
 		if groupadd "$group" 2>/dev/null; then

@@ -120,7 +120,7 @@ get_timestamp() {
 }
 
 #######################################
-# Set a file's timestamp (a "timestomp").
+# Set a file's timestamp (perform a "timestomp").
 #
 # Globals:
 #   None
