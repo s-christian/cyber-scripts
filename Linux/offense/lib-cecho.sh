@@ -27,7 +27,7 @@ GREEN='\033[0;32m'
 #   0 if cecho usage was correct, 1 otherwise
 ########################################
 cecho() {
-	local cecho_usage="${RED}[!] cecho usage: cecho <task|error|warning|info|log|debug|done> <\"log_message\">${COLOR_OFF}"
+	local cecho_usage="${RED}[!] cecho usage: cecho <task|error|warning|info|log|debug|sep|done> <\"log_message\">${COLOR_OFF}"
 
 	if [ $# -ne 2 ]; then
 		echo -e "$cecho_usage"
@@ -39,7 +39,6 @@ cecho() {
 
 	case $log_type in
 		"task")
-			echo
 			echo -e "${BOLD_WHITE}[+] --- ${log_message}${COLOR_OFF}"
 			;;
 		"error")
@@ -57,8 +56,14 @@ cecho() {
 		"debug")
 			echo -e "${PURPLE}[?] ${log_message}${COLOR_OFF}"
 			;;
+		"sep")
+			echo -en "${YELLOW}"
+			for _ in {1..10}; do echo -n "${log_message}"; done
+			echo -e "${COLOR_OFF}"
+			;;
 		"done")
 			echo -e "${GREEN}[=] ${log_message}${COLOR_OFF}"
+			echo
 			;;
 		*)
 			echo -e "$cecho_usage"

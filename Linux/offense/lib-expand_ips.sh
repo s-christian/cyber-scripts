@@ -15,6 +15,7 @@
 #   None
 # Arguments:
 #   IP range, such as 192.168.1.0/24, 192.168.1.50-100, 192.168.*.5-10, etc.
+#     Must be able to be parsed by Nmap.
 # Outputs:
 #   A list of IP addresses within the range, one per line
 # Returns:
