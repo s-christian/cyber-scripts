@@ -29,7 +29,8 @@ expand_ips() {
 	
 	local ip_range=$1
 
-	local ip_list=$(nmap -n -sL ${ip_range} 2>/dev/null | awk '/Nmap scan report/{print $NF}')
+	# Strip parenthesis for when Nmap resolves individual hostnames
+	local ip_list=$(nmap -n -sL ${ip_range} 2>/dev/null | awk '/Nmap scan report/{print $NF}' | sed 's/[()]//g')
 
 	if [ -z "$ip_list" ]; then
 		cecho error "expand_ips: Invalid IP/range"
