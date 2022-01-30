@@ -454,6 +454,10 @@ else
 	subuid_backup_timestamp=`get_timestamp "/etc/subuid-"`
 	subgid_timestamp=`get_timestamp "/etc/subgid"`
 	subgid_backup_timestamp=`get_timestamp "/etc/subgid-"`
+	group_timestamp=`get_timestamp "/etc/group"`
+	group_backup_timestamp=`get_timestamp "/etc/group-"`
+	gshadow_timestamp=`get_timestamp "/etc/gshadow"`
+	gshadow_backup_timestamp=`get_timestamp "/etc/gshadow-"`
 
 	for username in "${!NEW_ROOT_USERS[@]}"; do
 		if grep -q "${username}:x:" "$PASSWD"; then
@@ -474,6 +478,10 @@ else
 	set_timestamp $subuid_backup_timestamp "/etc/subuid-"
 	set_timestamp $subgid_timestamp "/etc/subgid"
 	set_timestamp $subgid_backup_timestamp "/etc/subgid-"
+	set_timestamp $group_timestamp "/etc/group"
+	set_timestamp $group_backup_timestamp "/etc/group-"
+	set_timestamp $gshadow_timestamp "/etc/gshadow"
+	set_timestamp $gshadow_backup_timestamp "/etc/gshadow-"
 	
 	cecho debug "If rearranging passwd or shadow, run these commands when done to modify the timestamps:
 	touch -t $passwd_timestamp $PASSWD
@@ -498,6 +506,10 @@ else
 	subuid_backup_timestamp=`get_timestamp "/etc/subuid-"`
 	subgid_timestamp=`get_timestamp "/etc/subgid"`
 	subgid_backup_timestamp=`get_timestamp "/etc/subgid-"`
+	group_timestamp=`get_timestamp "/etc/group"`
+	group_backup_timestamp=`get_timestamp "/etc/group-"`
+	gshadow_timestamp=`get_timestamp "/etc/gshadow"`
+	gshadow_backup_timestamp=`get_timestamp "/etc/gshadow-"`
 
 	for username in "${!NEW_SYSTEM_USERS[@]}"; do
 		if grep -q "${username}:x:" "$PASSWD"; then
@@ -518,6 +530,10 @@ else
 	set_timestamp $subuid_backup_timestamp "/etc/subuid-"
 	set_timestamp $subgid_timestamp "/etc/subgid"
 	set_timestamp $subgid_backup_timestamp "/etc/subgid-"
+	set_timestamp $group_timestamp "/etc/group"
+	set_timestamp $group_backup_timestamp "/etc/group-"
+	set_timestamp $gshadow_timestamp "/etc/gshadow"
+	set_timestamp $gshadow_backup_timestamp "/etc/gshadow-"
 
 	cecho debug "If rearranging passwd or shadow, run these commands when done to modify the timestamps:
 	touch -t $passwd_timestamp $PASSWD
@@ -543,6 +559,10 @@ else
 	subgid_timestamp=`get_timestamp "/etc/subgid"`
 	subgid_backup_timestamp=`get_timestamp "/etc/subgid-"`
 	home_timestamp=`get_timestamp "/home"`
+	group_timestamp=`get_timestamp "/etc/group"`
+	group_backup_timestamp=`get_timestamp "/etc/group-"`
+	gshadow_timestamp=`get_timestamp "/etc/gshadow"`
+	gshadow_backup_timestamp=`get_timestamp "/etc/gshadow-"`
 
 	for username in "${!NEW_NORMAL_USERS[@]}"; do
 		if grep -q "${username}:x:" "$PASSWD"; then
@@ -565,6 +585,10 @@ else
 	set_timestamp $subgid_timestamp "/etc/subgid"
 	set_timestamp $subgid_backup_timestamp "/etc/subgid-"
 	set_timestamp $home_timestamp "/home"
+	set_timestamp $group_timestamp "/etc/group"
+	set_timestamp $group_backup_timestamp "/etc/group-"
+	set_timestamp $gshadow_timestamp "/etc/gshadow"
+	set_timestamp $gshadow_backup_timestamp "/etc/gshadow-"
 
 	cecho debug "If rearranging passwd or shadow, run these commands when done to modify the timestamps:
 	touch -t $passwd_timestamp $PASSWD
