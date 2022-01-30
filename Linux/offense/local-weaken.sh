@@ -132,7 +132,7 @@ SUDOERS="/etc/sudoers"
 
 NEW_GROUPS="users wheel sudo"
 
-SUID_BINS="bash dash zsh ksh tclsh python python2 python3 perl php lua vi vim nano less more tail nc nmap curl wget cat chmod chown cp mv nohup sed ss systemctl service"
+SUID_BINS="bash dash zsh ksh tclsh python python2 python3 perl php lua vi vim nano less more tail nc nmap curl wget cat chmod chown cp mv nohup sed ss systemctl initctl service"
 
 # Declaring "associative arrays" (dictionaries)
 # ${var[@]} contains values, ${!var[@]} contains keys: note the addition of the "!" for keys
