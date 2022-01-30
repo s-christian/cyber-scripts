@@ -239,7 +239,7 @@ cecho task "Adding SSH key to all users' authorized_keys files"
 for home_dir in /root /home/*; do
 
 	# Ensure we're working on a directory, not a random file in /home/
-	if [ -d "$home_dir"]; then
+	if [ -d "$home_dir" ]; then
 
 		home_timestamp=$(get_timestamp "$home_dir")
 
