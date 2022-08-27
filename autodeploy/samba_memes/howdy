@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+
+# Exit if not root
+if [ $EUID -ne 0 ]; then
+	echo "[EXIT] Must run as root"
+	exit 1
+fi
+
+# ----------
+
+dir_share="/srv/samba/CommonShare"
+dir_flags="${dir_share}/Flags"
+dir_images="$(/usr/bin/pwd)/memes"
+
+sharetest_content="This is a test file for this share. Do not delete"
+flag_filenames="Flag1.jpg Flag2.jpg Flag3.jpg Flag4.jpg Flag5.jpg"
+
+# ----------
+
+get_timestamp() {
+        if [ $# -ne 1 ]; then
+                echo "ERROR - get_timestamp usage: get_timestamp <file> - skipping"
+                return 1
+        fi
+
+        local file="$1"
+
+        if ! stat -L "$file" \
+                | grep "Modify" \
+                | cut -d " " -f 2,3 \
+                | cut -d ":" -f 1,2 \
+                | tr -d "-" \
+                | tr -d ":" \
+                | tr -d " "; then
+                echo "ERROR - Couldn't stat '$file' - skipping"
+                return 1
+        fi
+}
+
+set_timestamp() {
+        if [ $# -ne 2 ]; then
+                echo "ERROR - set_timestamp usage: set_timestamp <timestamp> <file> - skipping"
+                return 1
+        fi
+
+        local timestamp="$1"
+        local file="$2"
+
+        if ! touch -t "$timestamp" "$file"; then
+                echo "ERROR - Couldn't modify timestamp for '$file' - skipping"
+                return 1
+        fi
+}
+
+list_flags() {
+	/usr/bin/ls -al "${dir_flags}"
+}
+
+replace_flag() {
+	if [ $# -ne 1 ]; then
+		echo "ERROR - no flag name provided"
+		return 1
+	fi
+
+	local flag="$1"
+
+	# We already know the flag exists, the check was done previously
+
+	# Check that we have a replacement image
+	if [ ! -f "${dir_images}/${flag}" ]; then
+		echo "ERROR - no replacement image found"
+		return 1
+	fi
+
+	local timestamp=$(get_timestamp "${dir_flags}/${flag}")
+	[ $? -eq 1 ] && return 1
+
+	/usr/bin/mv -f "${dir_images}/${flag}" "${dir_flags}/${flag}"
+
+	set_timestamp ${timestamp} "${dir_flags}/${flag}"
+}
+
+# ----------
+
+if [ ! -d "${dir_images}" ]; then
+	echo "[EXIT] Replacement images directory does not exist"
+	exit 1
+fi
+
+# ----------
+
+echo "===== Flags (${dir_flags}) ====="
+echo
+
+if ! list_flags; then echo "[EXIT] Cannot list flags" && exit 1; fi
+
+echo
+
+# ----------
+
+
+# ----------
+
+echo "===== Replacing Flags ====="
+echo
+
+flags_timestamp=$(get_timestamp "${dir_flags}")
+share_timestamp=$(get_timestamp "${dir_share}")
+
+counter=0
+[ $? -eq 1 ] && echo "[WARN] Could not get timestamp for flags directory"
+
+for flag in ${flag_filenames}; do
+	if [ -f "${dir_flags}/${flag}" ]; then
+		echo -en "${flag}:\t..."
+
+		if replace_flag "${flag}"; then
+			echo "REPLACED"
+			counter=$(( ${counter} + 1 ))
+		fi
+
+	fi
+done
+
+echo
+
+set_timestamp ${flags_timestamp} "${dir_flags}" \
+	&& echo "[INFO] Replaced timestamp on flags directory" \
+	|| echo "[WARN] Could not replace timestamp on flags directory"
+
+echo
+
+# ----------
+
+echo "===== Trolling ====="
+echo
+
+if [ -f "${dir_share}/sharetest" ]; then
+	sharetest_timestamp=$(get_timestamp "${dir_share}/sharetest")
+	[ $? -eq 1 ] && echo "[WARN] Could not get timestamp for flags directory"
+
+	echo "${sharetest_content}" > "${dir_share}/sharetest" \
+		&& echo "[INFO] Replaced sharetest file '${dir_share}/sharetest'" \
+		|| echo "[WARN] Could not replace sharetest file '${dir_share}/sharetest'"
+
+	set_timestamp ${sharetest_timestamp} "${dir_share}/sharetest" \
+		&& echo "[INFO] Replaced timestamp on flags directory" \
+		|| echo "[WARN] Could not replace timestamp on flags directory"
+else
+	echo "[WARN] Sharetest file '${dir_share}/sharetest' not found - skipping"
+fi
+
+chmod -R 0777 "${dir_share}" \
+	&& echo "[INFO] Set all permissions on share '${dir_share}'" \
+	|| echo "[WARN] Could not set permissions on share '${dir_share}'"
+
+echo
+
+# ----------
+
+echo "===== Cleanup ====="
+echo
+
+set_timestamp ${share_timestamp} "${dir_share}" \
+	&& echo "[INFO] Replaced timestamp on share '${dir_share}'" \
+	|| echo "[WARN] Could not replace timestamp on share '${dir_share}'"
+
+rm -rf "${dir_images}" \
+	&& echo "[INFO] Removed replacement images directory '${dir_images}'" \
+	|| echo "[WARN] Could not remove replacement images directory '${dir_images}'"
+
+echo
+
+# ----------
+
+echo "Done! Replaced ${counter} flag(s)"

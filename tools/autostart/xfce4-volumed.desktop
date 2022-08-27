@@ -1,0 +1,9 @@
+[Desktop Entry]
+Encoding=UTF-8
+Type=Application
+Name=Xfce Volume Daemon
+Icon=utilities-terminal
+Exec=/usr/lib/x86_64-linux-gnu/xfce4/volumed/xfce4-volumed
+Terminal=false
+NoDisplay=true
+StartupNotify=false

